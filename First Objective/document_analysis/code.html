@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OLIV4600 | Document Analysis Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&amp;family=Newsreader:ital,wght@0,400;1,400;1,600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary-container": "#fa813a",
+                    "surface": "#f8f9fa",
+                    "primary-fixed-dim": "#9ecaff",
+                    "background": "#f8f9fa",
+                    "on-primary-fixed-variant": "#00497c",
+                    "surface-bright": "#f8f9fa",
+                    "on-primary": "#ffffff",
+                    "surface-container": "#edeeef",
+                    "tertiary-container": "#622700",
+                    "on-surface-variant": "#43474e",
+                    "on-tertiary": "#ffffff",
+                    "secondary-fixed-dim": "#abc9f2",
+                    "surface-container-low": "#f3f4f5",
+                    "outline": "#73777f",
+                    "surface-container-highest": "#e1e3e4",
+                    "surface-container-high": "#e7e8e9",
+                    "on-secondary-container": "#3f5b7f",
+                    "primary": "#002542",
+                    "on-tertiary-fixed": "#341100",
+                    "on-secondary-fixed": "#001c38",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "surface-variant": "#e1e3e4",
+                    "tertiary": "#401700",
+                    "error": "#ba1a1a",
+                    "on-error-container": "#93000a",
+                    "outline-variant": "#c3c6cf",
+                    "inverse-surface": "#2e3132",
+                    "on-surface": "#191c1d",
+                    "on-error": "#ffffff",
+                    "on-secondary-fixed-variant": "#2b486b",
+                    "secondary-container": "#b6d4fe",
+                    "tertiary-fixed-dim": "#ffb691",
+                    "on-primary-fixed": "#001d36",
+                    "secondary": "#436084",
+                    "on-tertiary-fixed-variant": "#783100",
+                    "primary-fixed": "#d1e4ff",
+                    "inverse-on-surface": "#f0f1f2",
+                    "inverse-primary": "#9ecaff",
+                    "on-primary-container": "#66a6ea",
+                    "tertiary-fixed": "#ffdbcb",
+                    "primary-container": "#003b65",
+                    "on-background": "#191c1d",
+                    "surface-dim": "#d9dadb",
+                    "secondary-fixed": "#d2e4ff",
+                    "error-container": "#ffdad6",
+                    "surface-tint": "#0b61a1"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Inter"],
+                    "body": ["Newsreader"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .bg-glass {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+</head>
+<body class="bg-surface font-label text-on-surface">
+<!-- SideNavBar (Shared Component) -->
+<aside class="bg-[#002542] h-screen w-[280px] fixed left-0 top-0 flex flex-col h-full py-8 px-4 z-50">
+<div class="mb-10 px-4">
+<h1 class="text-2xl font-black tracking-tighter text-white font-['Inter']">OLIV4600</h1>
+<p class="font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-[#66a6ea] mt-1">Sovereign Intelligence</p>
+</div>
+<nav class="flex-grow space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+                Projects
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="edit_note">edit_note</span>
+                Templates
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+                Library
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-['Inter'] tracking-tight uppercase text-[11px] font-bold bg-[#001b30] text-[#66a6ea] border-r-2 border-[#66a6ea] rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="memory">memory</span>
+                AI Engine
+            </a>
+</nav>
+<button class="mt-4 mx-4 py-3 px-4 bg-[#66a6ea] text-[#002542] text-[11px] font-bold uppercase tracking-widest rounded-sm hover:opacity-90 active:scale-95 transition-all">
+            New Document
+        </button>
+<div class="mt-auto space-y-4 px-4 pt-8 border-t border-white/5">
+<div class="flex items-center gap-3 font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-slate-400">
+<span class="material-symbols-outlined" data-icon="shield_check">shield</span>
+                System Offline
+            </div>
+<div class="flex items-center gap-3 font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-[#66a6ea]">
+<span class="material-symbols-outlined text-[#66a6ea]" data-icon="bolt" style="font-variation-settings: 'FILL' 1;">bolt</span>
+                Qwen 3.5 Active
+            </div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="ml-[280px] min-h-screen">
+<!-- TopAppBar (Shared Component) -->
+<header class="flex justify-between items-center h-16 px-8 sticky top-0 z-40 bg-white/85 backdrop-blur-xl border-b border-slate-200/50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-outline-variant/10">
+<span class="material-symbols-outlined text-outline" data-icon="search">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm font-label w-64 placeholder:text-outline-variant" placeholder="Scan document repository..." type="text"/>
+</div>
+<nav class="flex gap-6 items-center">
+<a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Editor</a>
+<a class="font-['Newsreader'] italic text-lg text-[#C45911] border-b-2 border-[#C45911] pb-1" href="#">Analysis</a>
+<a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Verifiability</a>
+<a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Audit</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<button class="p-2 text-slate-500 hover:text-[#002542] transition-colors">
+<span class="material-symbols-outlined" data-icon="shield">shield</span>
+</button>
+<button class="p-2 text-slate-500 hover:text-[#002542] transition-colors">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+</button>
+<button class="p-2 text-slate-500 hover:text-[#002542] transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+<div class="h-8 w-px bg-slate-200 mx-2"></div>
+<button class="px-5 py-2 text-sm font-bold uppercase tracking-widest text-[#002542] border border-[#002542] rounded-sm hover:bg-[#002542] hover:text-white transition-all">
+                    Export
+                </button>
+<button class="px-5 py-2 text-sm font-bold uppercase tracking-widest bg-[#C45911] text-white rounded-sm shadow-md hover:shadow-lg active:scale-95 transition-all">
+                    Execute Process
+                </button>
+</div>
+</header>
+<!-- Dashboard Content -->
+<div class="p-10 max-w-7xl mx-auto">
+<header class="mb-10">
+<div class="flex justify-between items-end">
+<div>
+<h2 class="text-4xl font-headline font-black tracking-tighter text-primary uppercase">Document Analysis</h2>
+<p class="font-body italic text-xl text-outline mt-1">Sovereign Intelligence Report: v4.6.0.28</p>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 bg-primary text-on-primary-container rounded-sm">
+<span class="material-symbols-outlined text-[20px]" data-icon="lock" style="font-variation-settings: 'FILL' 1;">lock</span>
+<span class="text-[11px] font-bold uppercase tracking-[0.2em]">100% Offline Environment</span>
+</div>
+</div>
+</header>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-6">
+<!-- Card 1: Readability (Large Asymmetric) -->
+<div class="col-span-12 lg:col-span-4 bg-surface-container-lowest p-8 shadow-sm rounded-lg border border-transparent">
+<div class="flex justify-between items-start mb-8">
+<h3 class="font-headline font-bold text-xs uppercase tracking-widest text-primary">Readability Profile</h3>
+<span class="material-symbols-outlined text-primary/30" data-icon="menu_book">menu_book</span>
+</div>
+<div class="flex flex-col items-center py-4">
+<div class="relative w-48 h-48 flex items-center justify-center">
+<!-- Circular Gauge simulation -->
+<svg class="w-full h-full -rotate-90">
+<circle class="text-surface-container-high" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-width="12"></circle>
+<circle class="text-[#C45911]" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-dasharray="502" stroke-dashoffset="150" stroke-width="12"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-4xl font-black text-primary">72.4</span>
+<span class="text-[10px] font-bold uppercase text-outline tracking-tighter">Flesch-Szigriszt</span>
+</div>
+</div>
+<div class="mt-8 text-center">
+<div class="px-4 py-1.5 bg-primary-container text-on-primary-container inline-block rounded-sm mb-2">
+<span class="text-xs font-bold uppercase tracking-widest">University Level</span>
+</div>
+<p class="font-body text-sm text-on-surface-variant max-w-[200px] leading-relaxed">Highly technical syntax with academic structural patterns detected.</p>
+</div>
+</div>
+</div>
+<!-- Card 2: Sentiment Thermometer -->
+<div class="col-span-12 lg:col-span-4 bg-surface-container-lowest p-8 shadow-sm rounded-lg flex flex-col">
+<div class="flex justify-between items-start mb-8">
+<h3 class="font-headline font-bold text-xs uppercase tracking-widest text-primary">Emotional Resonance</h3>
+<span class="material-symbols-outlined text-primary/30" data-icon="psychology">psychology</span>
+</div>
+<div class="flex-grow flex flex-col justify-center">
+<div class="w-full h-4 bg-surface-container-high rounded-full overflow-hidden relative mb-4">
+<div class="absolute inset-y-0 left-0 bg-primary w-[75%] rounded-full opacity-10"></div>
+<div class="absolute inset-y-0 left-[72%] w-1 bg-[#C45911] shadow-[0_0_8px_rgba(196,89,17,0.5)] z-10"></div>
+</div>
+<div class="flex justify-between text-[10px] font-bold uppercase tracking-widest text-outline">
+<span>Hostile</span>
+<span class="text-primary">Formal/Neutral</span>
+<span>Advocacy</span>
+</div>
+</div>
+<div class="mt-8 p-4 bg-surface rounded-sm">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-lg" data-icon="verified_user">verified_user</span>
+<div>
+<span class="block text-[11px] font-black uppercase text-primary">Objective Profile</span>
+<p class="font-body text-sm italic">94% compliance with institutional tone.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 5: Alerts (Priority Column) -->
+<div class="col-span-12 lg:col-span-4 bg-[#401700] p-8 shadow-sm rounded-lg text-white">
+<div class="flex justify-between items-start mb-6">
+<h3 class="font-headline font-bold text-xs uppercase tracking-widest text-on-tertiary-fixed">Critical Anomalies</h3>
+<span class="material-symbols-outlined text-on-tertiary-container" data-icon="report" style="font-variation-settings: 'FILL' 1;">report</span>
+</div>
+<ul class="space-y-4">
+<li class="flex gap-4 items-start pb-4 border-b border-white/10">
+<div class="w-2 h-2 rounded-full bg-on-tertiary-container mt-1.5"></div>
+<div>
+<h4 class="text-[11px] font-black uppercase tracking-widest text-on-tertiary-container">Evasive Language</h4>
+<p class="font-body text-sm text-white/80 leading-snug">Multiple instances of passive voice in liability clauses.</p>
+</div>
+</li>
+<li class="flex gap-4 items-start pb-4 border-b border-white/10">
+<div class="w-2 h-2 rounded-full bg-on-tertiary-container mt-1.5"></div>
+<div>
+<h4 class="text-[11px] font-black uppercase tracking-widest text-on-tertiary-container">Data Gap</h4>
+<p class="font-body text-sm text-white/80 leading-snug">Fiscal year 2024 projections missing from summary.</p>
+</div>
+</li>
+<li class="flex gap-4 items-start">
+<div class="w-2 h-2 rounded-full bg-on-tertiary-container mt-1.5"></div>
+<div>
+<h4 class="text-[11px] font-black uppercase tracking-widest text-on-tertiary-container">Ambiguity Alert</h4>
+<p class="font-body text-sm text-white/80 leading-snug">"Reasonable efforts" clause lacks quantified metrics.</p>
+</div>
+</li>
+</ul>
+</div>
+<!-- Card 3: Entities (Wide Table) -->
+<div class="col-span-12 lg:col-span-8 bg-surface-container-lowest p-8 shadow-sm rounded-lg">
+<div class="flex justify-between items-start mb-8">
+<h3 class="font-headline font-bold text-xs uppercase tracking-widest text-primary">Named Entity Recognition (NER)</h3>
+<div class="flex gap-2">
+<button class="text-[10px] font-bold uppercase text-primary bg-primary/10 px-3 py-1 rounded-sm">Export CSV</button>
+</div>
+</div>
+<table class="w-full text-left">
+<thead>
+<tr class="border-b border-outline-variant/20">
+<th class="pb-4 text-[11px] font-black uppercase text-outline tracking-widest">Type</th>
+<th class="pb-4 text-[11px] font-black uppercase text-outline tracking-widest">Extracted Entity</th>
+<th class="pb-4 text-[11px] font-black uppercase text-outline tracking-widest">Sovereign Confidence</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<tr>
+<td class="py-4"><span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold uppercase rounded-sm">PERSON</span></td>
+<td class="py-4 font-body font-bold text-primary">Dr. Julian Vane</td>
+<td class="py-4">
+<div class="w-32 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="w-[98%] h-full bg-primary"></div>
+</div>
+</td>
+</tr>
+<tr>
+<td class="py-4"><span class="px-2 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-bold uppercase rounded-sm">ORGANIZATION</span></td>
+<td class="py-4 font-body font-bold text-primary">Aetheris Corp Int.</td>
+<td class="py-4">
+<div class="w-32 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="w-[92%] h-full bg-primary"></div>
+</div>
+</td>
+</tr>
+<tr>
+<td class="py-4"><span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold uppercase rounded-sm">DATE</span></td>
+<td class="py-4 font-body font-bold text-primary">October 14, 2026</td>
+<td class="py-4">
+<div class="w-32 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="w-[100%] h-full bg-primary"></div>
+</div>
+</td>
+</tr>
+<tr>
+<td class="py-4"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase rounded-sm">LOCATION</span></td>
+<td class="py-4 font-body font-bold text-primary">Geneva Free Port</td>
+<td class="py-4">
+<div class="w-32 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="w-[87%] h-full bg-primary"></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Card 6: Metadata (Vertical Stack) -->
+<div class="col-span-12 lg:col-span-4 space-y-6">
+<div class="bg-surface-container-lowest p-8 shadow-sm rounded-lg border-l-4 border-primary">
+<h3 class="font-headline font-bold text-xs uppercase tracking-widest text-primary mb-6">Structural Metadata</h3>
+<div class="space-y-6">
+<div>
+<label class="text-[10px] font-black uppercase text-outline block mb-2">Primary Keywords</label>
+<div class="flex flex-wrap gap-2">
+<span class="text-[11px] font-bold px-2 py-1 bg-surface-container-high rounded-sm">Sovereignty</span>
+<span class="text-[11px] font-bold px-2 py-1 bg-surface-container-high rounded-sm">Encryption</span>
+<span class="text-[11px] font-bold px-2 py-1 bg-surface-container-high rounded-sm">Liability</span>
+<span class="text-[11px] font-bold px-2 py-1 bg-surface-container-high rounded-sm">Protocol</span>
+</div>
+</div>
+<div>
+<label class="text-[10px] font-black uppercase text-outline block mb-2">Confidentiality Level</label>
+<div class="flex items-center gap-3">
+<div class="flex-grow h-2 bg-surface-container-high rounded-full overflow-hidden">
+<div class="w-4/5 h-full bg-[#C45911]"></div>
+</div>
+<span class="text-[11px] font-black text-[#C45911] uppercase">Restricted</span>
+</div>
+</div>
+<div>
+<label class="text-[10px] font-black uppercase text-outline block mb-2">Target Audience</label>
+<p class="font-body italic text-sm text-primary">Technical Steering Committee &amp; Legal Oversight</p>
+</div>
+</div>
+</div>
+<!-- Small map/location teaser -->
+<div class="relative h-32 rounded-lg overflow-hidden grayscale contrast-125 opacity-60">
+<img class="w-full h-full object-cover" data-alt="Satellite thermal map view of a high-security industrial complex in the Swiss Alps, monochrome blue tones" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6rIvWKDBnj-eq3zprwp9aXlG56rs2jEUQoCJcX4MbzHMZBVwhCqZ5B37-j525f3pG2bYeZNK0HAVirEZAbNjvW6OEWR3fkL7Lnoc-10PD8yW4UK3IDu_BtLHCZh7KImqQLyFp1L6KqdxyOOL1kgFgAFu2Cbap2DJXRinxvZuwfY697ZxErlw8nsZXNveBu7cnQWpNSNBRD_kioQIFJVi7yZ2Luyz8qlmPVJLzYB3TPLyJLj3gosqCdI5fqDesWNJ2D3SThRjbfSym"/>
+<div class="absolute inset-0 bg-primary/20"></div>
+<div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur px-2 py-1 rounded-sm">
+<span class="text-[9px] font-black uppercase text-primary tracking-tighter">Site Location: GEN-04</span>
+</div>
+</div>
+</div>
+<!-- Card 4: Timeline (Full Width Bottom) -->
+<div class="col-span-12 bg-surface-container-lowest p-8 shadow-sm rounded-lg">
+<div class="flex justify-between items-start mb-10">
+<h3 class="font-headline font-bold text-xs uppercase tracking-widest text-primary">Document Event Timeline</h3>
+<span class="material-symbols-outlined text-primary/30" data-icon="timeline">timeline</span>
+</div>
+<div class="relative py-10">
+<!-- Horizontal Line -->
+<div class="absolute top-1/2 left-0 w-full h-px bg-outline-variant/30 -translate-y-1/2"></div>
+<div class="flex justify-between relative px-10">
+<!-- Event 1 -->
+<div class="flex flex-col items-center">
+<div class="w-4 h-4 rounded-full bg-primary border-4 border-surface z-10"></div>
+<div class="mt-4 text-center">
+<span class="block text-[10px] font-black uppercase text-primary">2021-Q3</span>
+<p class="font-body text-sm mt-1 max-w-[120px]">Initial Protocol Drafted</p>
+</div>
+</div>
+<!-- Event 2 -->
+<div class="flex flex-col items-center">
+<div class="w-4 h-4 rounded-full bg-primary border-4 border-surface z-10"></div>
+<div class="mt-4 text-center">
+<span class="block text-[10px] font-black uppercase text-primary">2023-M11</span>
+<p class="font-body text-sm mt-1 max-w-[120px]">Aetheris Acquisition</p>
+</div>
+</div>
+<!-- Event 3 -->
+<div class="flex flex-col items-center">
+<div class="w-6 h-6 rounded-full bg-[#C45911] border-4 border-surface z-10 shadow-lg shadow-[#C45911]/20"></div>
+<div class="mt-4 text-center">
+<span class="block text-[10px] font-black uppercase text-[#C45911]">2026-OCT</span>
+<p class="font-body font-bold text-sm mt-1 max-w-[120px]">Current Analysis Horizon</p>
+</div>
+</div>
+<!-- Event 4 -->
+<div class="flex flex-col items-center opacity-40">
+<div class="w-4 h-4 rounded-full bg-outline border-4 border-surface z-10"></div>
+<div class="mt-4 text-center">
+<span class="block text-[10px] font-black uppercase text-outline">2027-PROJ</span>
+<p class="font-body text-sm mt-1 max-w-[120px]">Sunsetting Phase</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Dashboard Footer -->
+<footer class="mt-12 flex justify-between items-center text-outline-variant">
+<p class="text-[10px] font-bold uppercase tracking-widest">© 2026 OLIVETTI-SOCIETY SOVEREIGN SYSTEMS</p>
+<div class="flex gap-4">
+<span class="text-[10px] font-bold uppercase tracking-widest">LATENCY: 12ms</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">NODE: LOCAL-GEN-01</span>
+</div>
+</footer>
+</div>
+</main>
+</body></html>

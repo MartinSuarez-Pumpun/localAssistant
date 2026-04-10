@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OLIV4600 | Production Pipeline</title>
+<!-- Google Fonts: Inter & Newsreader -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&amp;family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#fa813a",
+                        "surface": "#f8f9fa",
+                        "primary-fixed-dim": "#9ecaff",
+                        "background": "#f8f9fa",
+                        "on-primary-fixed-variant": "#00497c",
+                        "surface-bright": "#f8f9fa",
+                        "on-primary": "#ffffff",
+                        "surface-container": "#edeeef",
+                        "tertiary-container": "#622700",
+                        "on-surface-variant": "#43474e",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed-dim": "#abc9f2",
+                        "surface-container-low": "#f3f4f5",
+                        "outline": "#73777f",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface-container-high": "#e7e8e9",
+                        "on-secondary-container": "#3f5b7f",
+                        "primary": "#002542",
+                        "on-tertiary-fixed": "#341100",
+                        "on-secondary-fixed": "#001c38",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e1e3e4",
+                        "tertiary": "#401700",
+                        "error": "#ba1a1a",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#c3c6cf",
+                        "inverse-surface": "#2e3132",
+                        "on-surface": "#191c1d",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#2b486b",
+                        "secondary-container": "#b6d4fe",
+                        "tertiary-fixed-dim": "#ffb691",
+                        "on-primary-fixed": "#001d36",
+                        "secondary": "#436084",
+                        "on-tertiary-fixed-variant": "#783100",
+                        "primary-fixed": "#d1e4ff",
+                        "inverse-on-surface": "#f0f1f2",
+                        "inverse-primary": "#9ecaff",
+                        "on-primary-container": "#66a6ea",
+                        "tertiary-fixed": "#ffdbcb",
+                        "primary-container": "#003b65",
+                        "on-background": "#191c1d",
+                        "surface-dim": "#d9dadb",
+                        "secondary-fixed": "#d2e4ff",
+                        "error-container": "#ffdad6",
+                        "surface-tint": "#0b61a1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Newsreader"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .pipeline-connector {
+            position: relative;
+        }
+        .pipeline-connector::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: -32px;
+            width: 32px;
+            height: 2px;
+            background-color: #c3c6cf;
+            z-index: 0;
+        }
+        .pipeline-connector:last-child::after {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- SideNavBar (Shared Component) -->
+<aside class="h-screen w-[280px] fixed left-0 top-0 bg-[#002542] flex flex-col py-8 px-4 z-50">
+<div class="mb-12 px-4">
+<h1 class="text-2xl font-black tracking-tighter text-white font-headline">OLIV4600</h1>
+<p class="font-headline tracking-tight uppercase text-[11px] font-bold text-[#66a6ea]">Sovereign Intelligence</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-4 py-3 gap-3 transition-colors bg-[#001b30] text-[#66a6ea] border-r-2 border-[#66a6ea] font-headline tracking-tight uppercase text-[11px] font-bold" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+                Projects
+            </a>
+<a class="flex items-center px-4 py-3 gap-3 transition-colors text-slate-400 hover:text-white hover:bg-[#00335c] font-headline tracking-tight uppercase text-[11px] font-bold" href="#">
+<span class="material-symbols-outlined" data-icon="edit_note">edit_note</span>
+                Templates
+            </a>
+<a class="flex items-center px-4 py-3 gap-3 transition-colors text-slate-400 hover:text-white hover:bg-[#00335c] font-headline tracking-tight uppercase text-[11px] font-bold" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+                Library
+            </a>
+<a class="flex items-center px-4 py-3 gap-3 transition-colors text-slate-400 hover:text-white hover:bg-[#00335c] font-headline tracking-tight uppercase text-[11px] font-bold" href="#">
+<span class="material-symbols-outlined" data-icon="memory">memory</span>
+                AI Engine
+            </a>
+</nav>
+<div class="mt-auto px-4 space-y-6">
+<button class="w-full bg-[#66a6ea] text-[#002542] py-3 rounded-lg font-headline font-bold text-xs uppercase tracking-widest active:scale-95 transition-transform">
+                New Document
+            </button>
+<div class="space-y-3 border-t border-slate-700 pt-6">
+<div class="flex items-center gap-3 text-slate-400 font-headline tracking-tight uppercase text-[10px] font-bold">
+<span class="material-symbols-outlined text-xs" data-icon="shield_check">shield</span>
+                    System Offline
+                </div>
+<div class="flex items-center gap-3 text-[#66a6ea] font-headline tracking-tight uppercase text-[10px] font-bold">
+<span class="material-symbols-outlined text-xs" data-icon="bolt">bolt</span>
+                    Qwen 3.5 Active
+                </div>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-[280px] min-h-screen flex flex-col">
+<!-- TopAppBar (Shared Component) -->
+<header class="flex justify-between items-center h-16 px-8 sticky top-0 z-40 bg-white/85 backdrop-blur-xl border-b border-slate-200/50 shadow-sm">
+<div class="flex items-center gap-8">
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-1.5 bg-surface-container-low border-none rounded-md text-sm font-label focus:ring-1 focus:ring-primary" placeholder="Search pipeline..." type="text"/>
+</div>
+<nav class="flex gap-6">
+<a class="font-body italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Editor</a>
+<a class="font-body italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Analysis</a>
+<a class="font-body italic text-lg text-[#C45911] border-b-2 border-[#C45911] pb-1" href="#">Verifiability</a>
+<a class="font-body italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Audit</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 mr-4">
+<span class="material-symbols-outlined text-slate-500 hover:text-primary cursor-pointer" data-icon="shield">shield</span>
+<span class="material-symbols-outlined text-slate-500 hover:text-primary cursor-pointer" data-icon="history_edu">history_edu</span>
+<span class="material-symbols-outlined text-slate-500 hover:text-primary cursor-pointer" data-icon="settings">settings</span>
+</div>
+<button class="px-4 py-1.5 text-sm font-label font-bold text-slate-600 hover:text-primary">Export</button>
+<button class="px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-label font-bold shadow-md hover:opacity-90 active:scale-95 transition-all">Execute Process</button>
+</div>
+</header>
+<!-- Page Canvas -->
+<section class="p-12 flex-1 flex flex-col">
+<!-- Header Section -->
+<div class="flex justify-between items-end mb-16">
+<div>
+<h2 class="font-headline text-4xl font-black text-primary tracking-tight mb-2">Production Pipeline</h2>
+<p class="font-body text-slate-500 text-xl max-w-2xl">Visualizing the propagation of institutional intelligence from source to distribution nodes.</p>
+</div>
+<button class="group flex items-center gap-3 bg-tertiary text-white px-8 py-4 rounded-lg font-headline font-bold text-sm tracking-widest uppercase hover:bg-opacity-90 transition-all shadow-xl">
+<span class="material-symbols-outlined group-hover:rotate-180 transition-transform duration-500" data-icon="cached">cached</span>
+                    Regenerate Full Pipeline
+                </button>
+</div>
+<!-- Pipeline Visualizer -->
+<div class="flex-1 flex items-center overflow-x-auto pb-12">
+<div class="flex gap-12 items-stretch min-w-max">
+<!-- Source Node -->
+<div class="flex flex-col gap-4 pipeline-connector">
+<span class="font-headline text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Root Authority</span>
+<div class="w-72 bg-white p-1 shadow-lg border border-slate-200">
+<div class="bg-surface-container p-6 border-b border-slate-100 flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div class="bg-primary text-white p-2">
+<span class="material-symbols-outlined text-lg" data-icon="description">description</span>
+</div>
+<span class="px-2 py-0.5 bg-orange-100 text-on-tertiary-container text-[10px] font-bold font-label flex items-center gap-1 border border-on-tertiary-container/20">
+<span class="material-symbols-outlined text-[10px]" data-icon="error">error</span>
+                                        SOURCE UPDATED
+                                    </span>
+</div>
+<div>
+<h3 class="font-body font-bold text-lg text-primary leading-tight">Institutional Report: Q3 Sovereignty Flux</h3>
+<p class="text-[11px] font-label text-slate-400 uppercase mt-1 tracking-wider">DOC_ID: OLIV-8820-X</p>
+</div>
+</div>
+<div class="relative h-48 bg-white p-4 overflow-hidden">
+<div class="space-y-2 opacity-40">
+<div class="h-2 w-full bg-slate-200"></div>
+<div class="h-2 w-4/5 bg-slate-200"></div>
+<div class="h-2 w-full bg-slate-200"></div>
+<div class="h-2 w-2/3 bg-slate-200"></div>
+<div class="mt-4 h-20 w-full bg-slate-100"></div>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4 flex justify-between items-center">
+<span class="text-[10px] font-label font-bold text-slate-400">142 PAGES</span>
+<span class="material-symbols-outlined text-primary text-sm" data-icon="open_in_new">open_in_new</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-2 text-[#C45911] px-1">
+<span class="material-symbols-outlined text-sm" data-icon="warning">warning</span>
+<span class="text-[11px] font-headline font-bold uppercase tracking-tighter">Propagation Pending</span>
+</div>
+</div>
+<!-- Derived Node: Executive Summary -->
+<div class="flex flex-col gap-4 pipeline-connector">
+<span class="font-headline text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Derived Layer 01</span>
+<div class="w-64 bg-white border border-slate-200 p-6 shadow-md flex flex-col gap-4 relative overflow-hidden">
+<div class="absolute top-0 right-0 w-1 h-full bg-blue-500"></div>
+<div class="flex justify-between items-center">
+<span class="material-symbols-outlined text-blue-500" data-icon="summarize">summarize</span>
+<span class="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold font-label uppercase tracking-wider">Edited</span>
+</div>
+<h4 class="font-body font-bold text-base text-primary">Executive Summary</h4>
+<p class="text-sm font-body text-slate-500 leading-relaxed italic">Synthesized high-level overview for leadership alignment.</p>
+<div class="mt-auto pt-4 border-t border-slate-50 flex justify-between items-center">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[8px] font-bold">JS</div>
+<div class="w-6 h-6 rounded-full bg-primary text-white border-2 border-white flex items-center justify-center text-[8px] font-bold">AI</div>
+</div>
+<span class="material-symbols-outlined text-slate-300 text-lg hover:text-primary cursor-pointer" data-icon="more_horiz">more_horiz</span>
+</div>
+</div>
+</div>
+<!-- Derived Node: Press Release -->
+<div class="flex flex-col gap-4 pipeline-connector">
+<span class="font-headline text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Derived Layer 02</span>
+<div class="w-64 bg-white border border-slate-200 p-6 shadow-md flex flex-col gap-4 relative overflow-hidden">
+<div class="absolute top-0 right-0 w-1 h-full bg-emerald-500"></div>
+<div class="flex justify-between items-center">
+<span class="material-symbols-outlined text-emerald-500" data-icon="news">news</span>
+<span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold font-label uppercase tracking-wider">Generated</span>
+</div>
+<h4 class="font-body font-bold text-base text-primary">Press Release</h4>
+<p class="text-sm font-body text-slate-500 leading-relaxed italic">External-facing communiqué for global media distribution.</p>
+<div class="mt-auto pt-4 border-t border-slate-50 flex justify-between items-center">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full bg-primary text-white border-2 border-white flex items-center justify-center text-[8px] font-bold">AI</div>
+</div>
+<button class="text-[10px] font-label font-bold text-blue-600 hover:underline">Review Now</button>
+</div>
+</div>
+</div>
+<!-- Derived Node: LinkedIn Post -->
+<div class="flex flex-col gap-4 pipeline-connector">
+<span class="font-headline text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Social Amplification</span>
+<div class="w-64 bg-slate-50 border border-slate-200 p-6 flex flex-col gap-4 relative opacity-80 group hover:opacity-100 transition-all">
+<div class="absolute top-0 right-0 w-1 h-full bg-slate-300"></div>
+<div class="flex justify-between items-center">
+<span class="material-symbols-outlined text-slate-400" data-icon="share">share</span>
+<span class="px-2 py-0.5 bg-slate-200 text-slate-500 text-[10px] font-bold font-label uppercase tracking-wider">Pending</span>
+</div>
+<h4 class="font-body font-bold text-base text-primary">LinkedIn Post</h4>
+<p class="text-sm font-body text-slate-400 leading-relaxed italic">Narrative-driven professional update for corporate ecosystem.</p>
+<div class="mt-auto pt-4 border-t border-slate-200 flex justify-between items-center">
+<span class="text-[10px] font-label text-slate-400 italic">Awaiting Layer 02...</span>
+<span class="material-symbols-outlined text-slate-300" data-icon="lock">lock</span>
+</div>
+</div>
+</div>
+<!-- Derived Node: Twitter Thread -->
+<div class="flex flex-col gap-4 pipeline-connector">
+<span class="font-headline text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Viral Extraction</span>
+<div class="w-64 bg-slate-50 border border-slate-200 p-6 flex flex-col gap-4 relative opacity-80 group hover:opacity-100 transition-all">
+<div class="absolute top-0 right-0 w-1 h-full bg-slate-300"></div>
+<div class="flex justify-between items-center">
+<span class="material-symbols-outlined text-slate-400" data-icon="rebase_edit">rebase_edit</span>
+<span class="px-2 py-0.5 bg-slate-200 text-slate-500 text-[10px] font-bold font-label uppercase tracking-wider">Pending</span>
+</div>
+<h4 class="font-body font-bold text-base text-primary">Twitter Thread</h4>
+<p class="text-sm font-body text-slate-400 leading-relaxed italic">Concise, high-impact data points for rapid discourse.</p>
+<div class="mt-auto pt-4 border-t border-slate-200 flex justify-between items-center">
+<span class="text-[10px] font-label text-slate-400 italic">Awaiting Layer 02...</span>
+<span class="material-symbols-outlined text-slate-300" data-icon="lock">lock</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Meta Info -->
+<div class="mt-auto grid grid-cols-4 gap-8 pt-8 border-t border-slate-200">
+<div class="flex flex-col gap-1">
+<span class="font-headline text-[10px] font-black uppercase tracking-widest text-slate-400">Last Synced</span>
+<span class="font-body italic text-primary">12 Oct 2026, 14:32:01 GMT</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-headline text-[10px] font-black uppercase tracking-widest text-slate-400">Pipeline Health</span>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+<span class="font-body italic text-primary">Stable - 2 active workers</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-headline text-[10px] font-black uppercase tracking-widest text-slate-400">AI Confidence</span>
+<div class="w-full bg-slate-200 h-1 mt-2">
+<div class="bg-primary h-1 w-[94%]"></div>
+</div>
+</div>
+<div class="flex flex-col gap-1 text-right">
+<span class="font-headline text-[10px] font-black uppercase tracking-widest text-slate-400">System State</span>
+<span class="font-label font-bold text-emerald-600 uppercase text-[10px]">Ready for Propagation</span>
+</div>
+</div>
+</section>
+<!-- Floating Action Insight (Asymmetric Glass Element) -->
+<div class="fixed bottom-12 right-12 w-80 bg-white/70 backdrop-blur-2xl p-6 shadow-2xl border border-white/40 rounded-lg">
+<div class="flex items-start gap-4">
+<div class="p-2 bg-[#C45911]/10 text-[#C45911] rounded">
+<span class="material-symbols-outlined text-lg" data-icon="insights">insights</span>
+</div>
+<div class="flex-1">
+<h5 class="font-headline font-bold text-xs uppercase tracking-tight text-primary mb-2">Architect's Note</h5>
+<p class="text-sm font-body text-slate-600 leading-relaxed">
+                        Source document changes detected in <span class="font-bold text-primary">Section 4.2</span>. Recommended regeneration of the <span class="italic">Press Release</span> node to maintain integrity.
+                    </p>
+<div class="mt-4 flex gap-3">
+<button class="text-[10px] font-headline font-black uppercase tracking-wider text-primary border-b border-primary pb-0.5">Accept</button>
+<button class="text-[10px] font-headline font-black uppercase tracking-wider text-slate-400 hover:text-error transition-colors">Dismiss</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

@@ -1,0 +1,7 @@
+[build]
+target     = "index.html"
+dist       = "app"
+public_url = "/plugins/oliv4600-pack/app/"
+
+[watch]
+ignore = ["app"]

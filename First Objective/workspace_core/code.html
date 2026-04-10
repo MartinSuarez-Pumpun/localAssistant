@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=Newsreader:ital,wght@0,400;0,500;0,600;1,400;1,500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#fa813a",
+                        "surface": "#f8f9fa",
+                        "primary-fixed-dim": "#9ecaff",
+                        "background": "#f8f9fa",
+                        "on-primary-fixed-variant": "#00497c",
+                        "surface-bright": "#f8f9fa",
+                        "on-primary": "#ffffff",
+                        "surface-container": "#edeeef",
+                        "tertiary-container": "#622700",
+                        "on-surface-variant": "#43474e",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed-dim": "#abc9f2",
+                        "surface-container-low": "#f3f4f5",
+                        "outline": "#73777f",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface-container-high": "#e7e8e9",
+                        "on-secondary-container": "#3f5b7f",
+                        "primary": "#002542",
+                        "on-tertiary-fixed": "#341100",
+                        "on-secondary-fixed": "#001c38",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e1e3e4",
+                        "tertiary": "#401700",
+                        "error": "#ba1a1a",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#c3c6cf",
+                        "inverse-surface": "#2e3132",
+                        "on-surface": "#191c1d",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#2b486b",
+                        "secondary-container": "#b6d4fe",
+                        "tertiary-fixed-dim": "#ffb691",
+                        "on-primary-fixed": "#001d36",
+                        "secondary": "#436084",
+                        "on-tertiary-fixed-variant": "#783100",
+                        "primary-fixed": "#d1e4ff",
+                        "inverse-on-surface": "#f0f1f2",
+                        "inverse-primary": "#9ecaff",
+                        "on-primary-container": "#66a6ea",
+                        "tertiary-fixed": "#ffdbcb",
+                        "primary-container": "#003b65",
+                        "on-background": "#191c1d",
+                        "surface-dim": "#d9dadb",
+                        "secondary-fixed": "#d2e4ff",
+                        "error-container": "#ffdad6",
+                        "surface-tint": "#0b61a1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter", "sans-serif"],
+                        "body": ["Newsreader", "serif"],
+                        "label": ["Inter", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .editorial-scrollbar::-webkit-scrollbar { width: 4px; }
+        .editorial-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .editorial-scrollbar::-webkit-scrollbar-thumb { background: #e1e3e4; border-radius: 10px; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: #e1e3e4;
+            height: 2px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #002542;
+            border-radius: 0;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-surface font-label text-on-surface overflow-hidden">
+<!-- Sidebar Anchor -->
+<aside class="h-screen w-[280px] fixed left-0 top-0 bg-[#002542] flex flex-col h-full py-8 px-4 z-50">
+<div class="mb-10 px-4">
+<h1 class="text-2xl font-black tracking-tighter text-white font-['Inter']">OLIV4600</h1>
+<p class="font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-[#66a6ea]">Sovereign Intelligence</p>
+</div>
+<button class="mx-4 mb-8 bg-[#66a6ea] text-[#002542] py-3 px-4 rounded-lg font-bold text-sm flex items-center justify-center gap-2 hover:bg-white transition-colors">
+<span class="material-symbols-outlined text-sm">add</span>
+            New Document
+        </button>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 bg-[#001b30] text-[#66a6ea] border-r-2 border-[#66a6ea] font-['Inter'] tracking-tight uppercase text-[11px] font-bold" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+                Projects
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors font-['Inter'] tracking-tight uppercase text-[11px] font-bold" href="#">
+<span class="material-symbols-outlined">edit_note</span>
+                Templates
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors font-['Inter'] tracking-tight uppercase text-[11px] font-bold" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                Library
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors font-['Inter'] tracking-tight uppercase text-[11px] font-bold" href="#">
+<span class="material-symbols-outlined">memory</span>
+                AI Engine
+            </a>
+</nav>
+<div class="mt-auto px-4 space-y-4">
+<div class="flex items-center gap-3 py-2 border-t border-slate-700/50 pt-6">
+<span class="material-symbols-outlined text-green-400 text-sm" data-weight="fill" style="font-variation-settings: 'FILL' 1;">shield</span>
+<span class="font-['Inter'] tracking-tight uppercase text-[10px] font-bold text-white">System Offline</span>
+</div>
+<div class="flex items-center gap-3 py-2">
+<span class="material-symbols-outlined text-[#66a6ea] text-sm">bolt</span>
+<span class="font-['Inter'] tracking-tight uppercase text-[10px] font-bold text-white">Qwen 3.5 Active</span>
+</div>
+</div>
+</aside>
+<!-- Top AppBar Anchor -->
+<header class="flex justify-between items-center h-16 px-8 ml-[280px] bg-white/85 backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-40">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-6">
+<a class="text-[#C45911] border-b-2 border-[#C45911] pb-1 font-['Newsreader'] italic text-lg" href="#">Editor</a>
+<a class="text-slate-500 hover:text-[#002542] transition-all font-['Newsreader'] italic text-lg" href="#">Analysis</a>
+<a class="text-slate-500 hover:text-[#002542] transition-all font-['Newsreader'] italic text-lg" href="#">Verifiability</a>
+<a class="text-slate-500 hover:text-[#002542] transition-all font-['Newsreader'] italic text-lg" href="#">Audit</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-slate-500 hover:text-[#002542] transition-all"><span class="material-symbols-outlined">history_edu</span></button>
+<button class="text-slate-500 hover:text-[#002542] transition-all"><span class="material-symbols-outlined">settings</span></button>
+<div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+<button class="bg-primary text-white px-4 py-1.5 rounded-sm text-xs font-bold uppercase tracking-widest hover:opacity-90 active:scale-95 transition-all">Execute Process</button>
+</div>
+</header>
+<!-- Main Workspace (3 Columns) -->
+<main class="ml-[280px] h-[calc(100vh-64px)] flex overflow-hidden">
+<!-- Column 1: Source Document (45%) -->
+<section class="w-[45%] flex flex-col border-l-[4px] border-[#2E75B6] bg-surface-container-lowest">
+<div class="h-12 border-b border-outline-variant/15 flex items-center justify-between px-6 bg-surface-container-low/30">
+<div class="flex items-center gap-4">
+<span class="text-[10px] font-bold uppercase tracking-tighter text-outline">Source: Institutional_Report_v4.docx</span>
+<span class="px-2 py-0.5 bg-secondary-container/30 text-secondary text-[9px] font-black rounded-sm">ES-ES</span>
+</div>
+<div class="flex gap-2">
+<span class="material-symbols-outlined text-sm text-outline">format_bold</span>
+<span class="material-symbols-outlined text-sm text-outline">format_italic</span>
+<span class="material-symbols-outlined text-sm text-outline">list</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-12 editorial-scrollbar font-body text-xl leading-relaxed text-on-surface/90">
+<h2 class="text-3xl font-semibold mb-8 text-primary">Inovación en Defensa: Informe de Soberanía Tecnológica 2026</h2>
+<p class="mb-6">
+                    El panorama actual de la defensa europea exige un cambio de paradigma hacia la autonomía estratégica digital. La integración de sistemas OLIV4600 representa no solo un avance técnico, sino un compromiso institucional con la integridad de los datos soberanos. 
+                </p>
+<p class="mb-6">
+                    A medida que avanzamos hacia modelos de inteligencia distribuida, la veracidad y la trazabilidad de cada proceso analítico se vuelven pilares fundamentales. Este informe detalla los protocolos de seguridad implementados para garantizar que el procesamiento de lenguaje natural se mantenga dentro del perímetro físico de la infraestructura institucional, sin dependencias de nubes externas.
+                </p>
+<p class="mb-6">
+                    La optimización de los flujos de trabajo editoriales permite que la comunicación técnica sea transformada en narrativa estratégica en milisegundos, manteniendo siempre el control humano en el bucle de decisión.
+                </p>
+</div>
+<div class="h-10 bg-surface-container-low border-t border-outline-variant/15 flex items-center justify-between px-6">
+<div class="flex gap-4 text-[10px] font-bold uppercase text-outline">
+<span>Words: 1,248</span>
+<span>Reading: 5 min</span>
+</div>
+<div class="text-[10px] font-bold uppercase text-outline">Encoding: UTF-8</div>
+</div>
+</section>
+<!-- Column 2: Control Panel (240px) -->
+<section class="w-[240px] bg-surface-container-low flex flex-col border-x border-outline-variant/15">
+<div class="p-6 space-y-8">
+<div>
+<label class="block text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4">Action Selector</label>
+<div class="space-y-1">
+<button class="w-full text-left px-3 py-2 text-xs font-bold bg-[#001b30] text-white flex items-center justify-between">
+                            Summarize
+                            <span class="material-symbols-outlined text-xs">expand_more</span>
+</button>
+<div class="grid grid-cols-1 gap-1 mt-2">
+<button class="w-full text-left px-3 py-1.5 text-[11px] font-medium text-outline hover:bg-surface-container-highest transition-colors">Communication</button>
+<button class="w-full text-left px-3 py-1.5 text-[11px] font-medium text-outline hover:bg-surface-container-highest transition-colors">Admin</button>
+<button class="w-full text-left px-3 py-1.5 text-[11px] font-medium text-outline hover:bg-surface-container-highest transition-colors">Analysis</button>
+<button class="w-full text-left px-3 py-1.5 text-[11px] font-medium text-outline hover:bg-surface-container-highest transition-colors">Verifiability</button>
+</div>
+</div>
+</div>
+<div class="space-y-6">
+<div>
+<div class="flex justify-between mb-2">
+<label class="text-[10px] font-black uppercase text-on-surface-variant">Length</label>
+<span class="text-[10px] font-bold text-primary">250w</span>
+</div>
+<input class="w-full" max="500" min="50" type="range" value="250"/>
+</div>
+<div>
+<div class="flex justify-between mb-2">
+<label class="text-[10px] font-black uppercase text-on-surface-variant">Tone</label>
+<span class="text-[10px] font-bold text-primary">Technical</span>
+</div>
+<input class="w-full" max="5" min="1" type="range" value="4"/>
+</div>
+<div>
+<label class="block text-[10px] font-black uppercase text-on-surface-variant mb-2">Audience</label>
+<select class="w-full bg-surface-container-highest border-none text-[11px] font-bold py-2 focus:ring-0">
+<option>City/Municipal</option>
+<option>Press/Global</option>
+<option>Internal/Secured</option>
+</select>
+</div>
+</div>
+</div>
+<div class="mt-auto p-4 bg-[#001b30]">
+<button class="w-full bg-[#2E75B6] hover:bg-[#66a6ea] active:scale-[0.98] transition-all text-white py-4 rounded-sm flex flex-col items-center justify-center gap-1 group shadow-[0_0_20px_rgba(46,117,182,0.3)]">
+<span class="material-symbols-outlined text-2xl group-active:animate-pulse">bolt</span>
+<span class="text-[11px] font-black uppercase tracking-widest">Generate</span>
+</button>
+<p class="text-[8px] text-center mt-3 text-slate-500 font-bold uppercase tracking-tight">System Latency: 42ms</p>
+</div>
+</section>
+<!-- Column 3: Result Area (45%) -->
+<section class="flex-1 flex flex-col border-l-[4px] border-[#C45911] bg-surface">
+<div class="h-12 border-b border-outline-variant/15 flex items-center justify-between px-6 bg-surface-container-highest/30">
+<div class="flex items-center gap-4">
+<span class="text-[10px] font-bold uppercase tracking-tighter text-tertiary">Output: Executive Summary</span>
+</div>
+<div class="flex gap-4">
+<button class="flex items-center gap-1 text-[10px] font-bold uppercase text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">content_copy</span> Copy
+                    </button>
+<button class="flex items-center gap-1 text-[10px] font-bold uppercase text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">ios_share</span> Export
+                    </button>
+</div>
+</div>
+<div class="flex-1 p-12 overflow-y-auto editorial-scrollbar">
+<div class="max-w-2xl">
+<div class="mb-8 inline-block px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant text-[9px] font-black uppercase tracking-widest rounded-sm">
+                        Verified Result
+                    </div>
+<div class="font-body italic text-2xl text-on-surface/80 leading-relaxed space-y-6">
+<p>The transition of the OLIV4600 system toward sovereign intelligence represents a critical infrastructure milestone for 2026. This technical pivot ensures that sensitive defense data remains isolated from public cloud vectors while maintaining computational superiority.</p>
+<p>Key pillars identified include:</p>
+<ul class="list-none space-y-4 not-italic font-label text-sm uppercase tracking-tight font-bold text-primary">
+<li class="flex items-start gap-3">
+<span class="w-1.5 h-1.5 bg-[#C45911] mt-1.5 shrink-0"></span>
+                                Strategic autonomy in algorithmic execution.
+                            </li>
+<li class="flex items-start gap-3">
+<span class="w-1.5 h-1.5 bg-[#C45911] mt-1.5 shrink-0"></span>
+                                Complete physical data sovereignty within institutional perimeters.
+                            </li>
+<li class="flex items-start gap-3">
+<span class="w-1.5 h-1.5 bg-[#C45911] mt-1.5 shrink-0"></span>
+                                Human-in-the-loop validation for all AI-generated strategic narratives.
+                            </li>
+</ul>
+<p>By prioritizing traceability and local processing, the institution mitigates the risks associated with third-party dependencies and enhances the reliability of its defensive innovation framework.</p>
+</div>
+</div>
+</div>
+<div class="p-6 bg-surface-container-low/50 border-t border-outline-variant/15">
+<div class="flex flex-wrap items-center gap-x-6 gap-y-2 opacity-60">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xs">verified</span>
+<span class="text-[10px] font-bold uppercase tracking-tight">Generated with [Executive Summary]</span>
+</div>
+<div class="w-1 h-1 bg-outline rounded-full"></div>
+<span class="text-[10px] font-bold uppercase tracking-tight">Oct 24, 2026</span>
+<div class="w-1 h-1 bg-outline rounded-full"></div>
+<span class="text-[10px] font-bold uppercase tracking-tight">Prompt v1.2</span>
+<div class="w-1 h-1 bg-outline rounded-full"></div>
+<span class="text-[10px] font-bold uppercase tracking-tight">SHA-256: 8f92...a3e1</span>
+</div>
+<div class="mt-6 flex gap-3">
+<button class="bg-surface-container-highest text-on-surface text-[10px] font-black uppercase px-6 py-2.5 hover:bg-outline-variant transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">edit</span> Edit Result
+                    </button>
+<button class="border border-outline-variant text-on-surface text-[10px] font-black uppercase px-6 py-2.5 hover:bg-surface-container-highest transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">refresh</span> Regenerate
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Floating Tooltip/Status Ribbon (Fixed Bottom) -->
+<div class="fixed bottom-6 right-6 z-50 pointer-events-none">
+<div class="bg-[#002542] text-[#66a6ea] px-4 py-2 border-l-4 border-[#C45911] flex items-center gap-4 shadow-2xl">
+<div class="flex gap-1">
+<div class="w-1 h-3 bg-white/20"></div>
+<div class="w-1 h-3 bg-[#66a6ea]"></div>
+<div class="w-1 h-3 bg-[#66a6ea]"></div>
+</div>
+<span class="text-[10px] font-black uppercase tracking-[0.2em]">Processing Secured: Local Node 04</span>
+</div>
+</div>
+</body></html>

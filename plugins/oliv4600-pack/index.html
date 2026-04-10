@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>OLIV4600 — Sovereign Intelligence</title>
+
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap"
+          rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+          rel="stylesheet"/>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"],
+                        serif: ["Newsreader", "serif"],
+                    },
+                    colors: {
+                        primary: "#002542",
+                        "primary-cont": "#66a6ea",
+                        action: "#C45911",
+                        "action-light": "#fa813a",
+                        surface: "#f8f9fa",
+                        "surf-low": "#f3f4f5",
+                        "surf-cont": "#edeeef",
+                        "surf-high": "#e7e8e9",
+                        "surf-highest": "#e1e3e4",
+                        "on-surf": "#191c1d",
+                        "on-surf-var": "#43474e",
+                        outline: "#73777f",
+                        "outline-var": "#c3c6cf",
+                        "sec-cont": "#b6d4fe",
+                        "on-sec-cont": "#3f5b7f",
+                    },
+                },
+            },
+        };
+        window.parent.postMessage({type: "localai:sidebar_color", color: "#002542"}, "*")
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: #f8f9fa;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 24;
+            vertical-align: middle;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body>
+<div id="app"></div>
+<link data-trunk data-wasm-opt="z" rel="rust"/>
+</body>
+</html>

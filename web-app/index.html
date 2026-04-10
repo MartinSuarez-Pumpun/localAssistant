@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>LocalAiAssistant</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+          rel="stylesheet"/>
+
+    <!-- Tailwind CDN (dev; en release se reemplaza por build) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#1a56db",
+                        "primary-cont": "#93c5fd",
+                        action: "#1a56db",
+                        "action-light": "#60a5fa",
+                        surface: "#f9fafb",
+                        "surf-low": "#f3f4f6",
+                        "surf-cont": "#e5e7eb",
+                        "surf-high": "#d1d5db",
+                        "surf-highest": "#9ca3af",
+                        "on-surf": "#111827",
+                        "on-surf-var": "#374151",
+                        outline: "#6b7280",
+                        "outline-var": "#d1d5db",
+                        "sec-cont": "#bfdbfe",
+                        "on-sec-cont": "#1e40af",
+                    },
+                },
+            },
+        };
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: #f9fafb;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 24;
+            vertical-align: middle;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body>
+<!-- Leptos monta aquí -->
+<div id="app"></div>
+<link data-trunk data-wasm-opt="z" rel="rust"/>
+</body>
+</html>

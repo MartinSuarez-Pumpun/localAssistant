@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#fa813a",
+                        "surface": "#f8f9fa",
+                        "primary-fixed-dim": "#9ecaff",
+                        "background": "#f8f9fa",
+                        "on-primary-fixed-variant": "#00497c",
+                        "surface-bright": "#f8f9fa",
+                        "on-primary": "#ffffff",
+                        "surface-container": "#edeeef",
+                        "tertiary-container": "#622700",
+                        "on-surface-variant": "#43474e",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed-dim": "#abc9f2",
+                        "surface-container-low": "#f3f4f5",
+                        "outline": "#73777f",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface-container-high": "#e7e8e9",
+                        "on-secondary-container": "#3f5b7f",
+                        "primary": "#002542",
+                        "on-tertiary-fixed": "#341100",
+                        "on-secondary-fixed": "#001c38",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e1e3e4",
+                        "tertiary": "#401700",
+                        "error": "#ba1a1a",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#c3c6cf",
+                        "inverse-surface": "#2e3132",
+                        "on-surface": "#191c1d",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#2b486b",
+                        "secondary-container": "#b6d4fe",
+                        "tertiary-fixed-dim": "#ffb691",
+                        "on-primary-fixed": "#001d36",
+                        "secondary": "#436084",
+                        "on-tertiary-fixed-variant": "#783100",
+                        "primary-fixed": "#d1e4ff",
+                        "inverse-on-surface": "#f0f1f2",
+                        "inverse-primary": "#9ecaff",
+                        "on-primary-container": "#66a6ea",
+                        "tertiary-fixed": "#ffdbcb",
+                        "primary-container": "#003b65",
+                        "on-background": "#191c1d",
+                        "surface-dim": "#d9dadb",
+                        "secondary-fixed": "#d2e4ff",
+                        "error-container": "#ffdad6",
+                        "surface-tint": "#0b61a1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Newsreader"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-headline antialiased">
+<!-- SideNavBar Component -->
+<aside class="bg-[#002542] h-screen w-[280px] fixed left-0 top-0 flex flex-col h-full py-8 px-4 z-50">
+<div class="mb-10 px-2">
+<h1 class="text-2xl font-black tracking-tighter text-white font-['Inter']">OLIV4600</h1>
+<p class="font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-[#66a6ea]">Sovereign Intelligence</p>
+</div>
+<nav class="flex-1 space-y-1">
+<div class="mb-6">
+<span class="px-2 mb-2 block font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-slate-400">Main</span>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#001b30] text-[#66a6ea] border-r-2 border-[#66a6ea] transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="folder_open">folder_open</span>
+<span class="text-sm font-semibold">Projects</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit_note">edit_note</span>
+<span class="text-sm font-semibold">Templates</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="inventory_2">inventory_2</span>
+<span class="text-sm font-semibold">Library</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="memory">memory</span>
+<span class="text-sm font-semibold">AI Engine</span>
+</a>
+</div>
+<div class="mb-6">
+<span class="px-2 mb-2 block font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-slate-400">Recent Projects</span>
+<div class="space-y-1 px-2">
+<div class="text-[13px] text-slate-300 py-1 cursor-pointer hover:text-white truncate">Q4 Fiscal Policy Draft</div>
+<div class="text-[13px] text-slate-300 py-1 cursor-pointer hover:text-white truncate">Institutional Audit Log</div>
+<div class="text-[13px] text-slate-300 py-1 cursor-pointer hover:text-white truncate">Press Release: Sovereign...</div>
+</div>
+</div>
+<div>
+<span class="px-2 mb-2 block font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-slate-400">Templates</span>
+<div class="space-y-1 px-2">
+<div class="text-[13px] text-slate-300 py-1 cursor-pointer hover:text-white flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Press Release
+                    </div>
+<div class="text-[13px] text-slate-300 py-1 cursor-pointer hover:text-white flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Internal Report
+                    </div>
+<div class="text-[13px] text-slate-300 py-1 cursor-pointer hover:text-white flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Meeting Minutes
+                    </div>
+</div>
+</div>
+</nav>
+<div class="mt-auto pt-6 space-y-4">
+<button class="w-full bg-primary-container text-on-primary-container py-3 px-4 rounded-lg font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                New Document
+            </button>
+<div class="flex flex-col gap-2 border-t border-slate-700/50 pt-4">
+<div class="flex items-center gap-3 px-2 py-1.5">
+<span class="material-symbols-outlined text-[18px] text-[#66a6ea]" data-icon="shield_check">shield</span>
+<span class="font-['Inter'] tracking-tight uppercase text-[10px] font-bold text-[#66a6ea]">System Offline</span>
+</div>
+<div class="flex items-center gap-3 px-2 py-1.5">
+<div class="relative">
+<span class="material-symbols-outlined text-[18px] text-green-400" data-icon="bolt">bolt</span>
+<span class="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+</div>
+<span class="font-['Inter'] tracking-tight uppercase text-[10px] font-bold text-white">Qwen 3.5 Active</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-[280px] min-h-screen">
+<!-- TopAppBar Component -->
+<header class="bg-white/85 backdrop-blur-xl flex justify-between items-center h-16 px-8 sticky top-0 z-40 border-b border-slate-200/50 shadow-sm">
+<div class="flex items-center gap-8">
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-3 text-slate-400" data-icon="search">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-lg text-sm w-64 focus:ring-1 focus:ring-primary" placeholder="Search archive..." type="text"/>
+</div>
+<nav class="hidden md:flex gap-6">
+<a class="font-['Newsreader'] italic text-lg text-[#C45911] border-b-2 border-[#C45911] pb-1" href="#">Editor</a>
+<a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Analysis</a>
+<a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Verifiability</a>
+<a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Audit</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex gap-2 mr-4 border-r border-slate-200 pr-4">
+<button class="p-2 text-slate-500 hover:bg-surface-container rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="shield">shield</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-surface-container rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-surface-container rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+<button class="px-4 py-2 bg-primary text-white rounded-lg font-bold text-sm active:opacity-70 transition-all">
+                    Execute Process
+                </button>
+</div>
+</header>
+<section class="p-8 max-w-7xl mx-auto space-y-8">
+<!-- Hero Zone: Drag & Drop -->
+<div class="relative">
+<div class="bg-surface-container-lowest border-2 border-dashed border-outline-variant rounded-xl p-16 text-center flex flex-col items-center justify-center transition-all hover:border-primary-container group">
+<div class="w-16 h-16 bg-surface-container-low rounded-full flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[32px]" data-icon="upload_file">upload_file</span>
+</div>
+<h2 class="font-body italic text-3xl text-primary mb-2">Drag a document or start typing</h2>
+<p class="text-on-surface-variant font-label text-sm mb-8">Secure, local-only processing. Your data never leaves this machine.</p>
+<div class="flex flex-wrap justify-center gap-3">
+<button class="flex items-center gap-2 px-5 py-2.5 bg-surface-container-high rounded-lg font-bold text-xs uppercase tracking-wider text-primary hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="picture_as_pdf">picture_as_pdf</span> PDF
+                        </button>
+<button class="flex items-center gap-2 px-5 py-2.5 bg-surface-container-high rounded-lg font-bold text-xs uppercase tracking-wider text-primary hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="description">description</span> DOCX
+                        </button>
+<button class="flex items-center gap-2 px-5 py-2.5 bg-surface-container-high rounded-lg font-bold text-xs uppercase tracking-wider text-primary hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="article">article</span> TXT
+                        </button>
+<button class="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary/20 hover:translate-y-[-2px] transition-all">
+<span class="material-symbols-outlined text-[18px]" data-icon="add_circle">add_circle</span> New Document
+                        </button>
+</div>
+</div>
+<!-- Status Ribbon Overlay -->
+<div class="absolute -bottom-3 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-primary text-[#66a6ea] border border-[#66a6ea]/30 rounded-full flex items-center gap-2 shadow-xl">
+<div class="w-1.5 h-1.5 bg-[#66a6ea] rounded-full animate-pulse"></div>
+<span class="font-label text-[10px] font-black uppercase tracking-widest">Sovereign Protocol Active</span>
+</div>
+</div>
+<!-- Quick Actions Grid (Asymmetric) -->
+<div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+<!-- Large Feature Card -->
+<div class="md:col-span-2 bg-primary text-white p-8 rounded-xl flex flex-col justify-between min-h-[240px] relative overflow-hidden group">
+<div class="relative z-10">
+<span class="material-symbols-outlined text-[40px] text-[#66a6ea] mb-4 block" data-icon="auto_awesome">auto_awesome</span>
+<h3 class="font-body italic text-2xl mb-2">Advanced Transformation</h3>
+<p class="text-slate-400 text-sm leading-relaxed max-w-xs">Convert raw data into professional intelligence reports using the Qwen 3.5 engine.</p>
+</div>
+<button class="relative z-10 mt-6 self-start px-4 py-2 bg-[#66a6ea] text-primary rounded-lg font-bold text-xs uppercase transition-transform hover:scale-105 active:scale-95">
+                        Initialize Engine
+                    </button>
+<div class="absolute right-[-20px] bottom-[-20px] opacity-10 group-hover:scale-110 transition-transform duration-700">
+<span class="material-symbols-outlined text-[200px]" data-icon="memory">memory</span>
+</div>
+</div>
+<!-- Action Cards -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-transparent hover:border-outline-variant transition-all cursor-pointer group">
+<span class="material-symbols-outlined text-tertiary mb-4 block" data-icon="summarize">summarize</span>
+<h4 class="font-headline font-bold text-sm uppercase tracking-tight mb-1 text-primary">Summarize</h4>
+<p class="text-on-surface-variant text-xs font-body italic">Executive distillation of core concepts.</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-transparent hover:border-outline-variant transition-all cursor-pointer group">
+<span class="material-symbols-outlined text-[#C45911] mb-4 block" data-icon="campaign">campaign</span>
+<h4 class="font-headline font-bold text-sm uppercase tracking-tight mb-1 text-primary">Press Release</h4>
+<p class="text-on-surface-variant text-xs font-body italic">Draft professional public communications.</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-transparent hover:border-outline-variant transition-all cursor-pointer group">
+<span class="material-symbols-outlined text-[#66a6ea] mb-4 block" data-icon="forum">forum</span>
+<h4 class="font-headline font-bold text-sm uppercase tracking-tight mb-1 text-primary">Chat with Doc</h4>
+<p class="text-on-surface-variant text-xs font-body italic">Direct query dialogue with your source text.</p>
+</div>
+</div>
+<!-- Recent Transformations -->
+<div class="space-y-4">
+<div class="flex justify-between items-end">
+<div>
+<h3 class="font-headline font-black text-xl text-primary tracking-tighter">Recent Transformations</h3>
+<p class="font-body italic text-on-surface-variant">History of processed intelligence</p>
+</div>
+<button class="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1 hover:underline">
+                        View Full Archive <span class="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-slate-200/50">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-slate-200">
+<th class="px-6 py-4 font-label font-bold text-[10px] uppercase tracking-widest text-slate-500">Document Name</th>
+<th class="px-6 py-4 font-label font-bold text-[10px] uppercase tracking-widest text-slate-500">Transformation Type</th>
+<th class="px-6 py-4 font-label font-bold text-[10px] uppercase tracking-widest text-slate-500">Timestamp</th>
+<th class="px-6 py-4 font-label font-bold text-[10px] uppercase tracking-widest text-slate-500 text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100">
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-slate-400" data-icon="description">description</span>
+<span class="font-headline font-bold text-sm text-primary">Q4_Budget_Review_V2.pdf</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2.5 py-1 bg-primary-container text-on-primary-container rounded text-[10px] font-black uppercase tracking-tighter">Executive Summary</span>
+</td>
+<td class="px-6 py-4 text-xs text-on-surface-variant font-label">Oct 14, 2026 — 14:32</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1.5 hover:bg-surface-container rounded-lg text-primary">
+<span class="material-symbols-outlined text-[18px]" data-icon="visibility">visibility</span>
+</button>
+<button class="p-1.5 hover:bg-surface-container rounded-lg text-primary">
+<span class="material-symbols-outlined text-[18px]" data-icon="download">download</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-slate-400" data-icon="description">description</span>
+<span class="font-headline font-bold text-sm text-primary">Annual_Sustainability_Report.docx</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2.5 py-1 bg-tertiary-container text-on-tertiary-container rounded text-[10px] font-black uppercase tracking-tighter">Press Release Draft</span>
+</td>
+<td class="px-6 py-4 text-xs text-on-surface-variant font-label">Oct 13, 2026 — 09:15</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1.5 hover:bg-surface-container rounded-lg text-primary">
+<span class="material-symbols-outlined text-[18px]" data-icon="visibility">visibility</span>
+</button>
+<button class="p-1.5 hover:bg-surface-container rounded-lg text-primary">
+<span class="material-symbols-outlined text-[18px]" data-icon="download">download</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-slate-400" data-icon="description">description</span>
+<span class="font-headline font-bold text-sm text-primary">Strategic_Vision_2027.odt</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2.5 py-1 bg-surface-container-highest text-on-surface-variant rounded text-[10px] font-black uppercase tracking-tighter">LinkedIn Optimization</span>
+</td>
+<td class="px-6 py-4 text-xs text-on-surface-variant font-label">Oct 12, 2026 — 18:44</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1.5 hover:bg-surface-container rounded-lg text-primary">
+<span class="material-symbols-outlined text-[18px]" data-icon="visibility">visibility</span>
+</button>
+<button class="p-1.5 hover:bg-surface-container rounded-lg text-primary">
+<span class="material-symbols-outlined text-[18px]" data-icon="download">download</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- Footer / Model Signature -->
+<footer class="p-8 border-t border-slate-200 mt-12">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-8">
+<div class="flex flex-col">
+<span class="font-label text-[10px] font-bold uppercase tracking-widest text-slate-400">Computational Engine</span>
+<span class="font-headline font-bold text-primary">Qwen 3.5 — 32B Instruct</span>
+</div>
+<div class="h-8 w-[1px] bg-slate-200 hidden md:block"></div>
+<div class="flex flex-col">
+<span class="font-label text-[10px] font-bold uppercase tracking-widest text-slate-400">Privacy Status</span>
+<span class="font-headline font-bold text-primary flex items-center gap-2">
+<span class="w-2 h-2 bg-green-500 rounded-full"></span> 
+                            100% Air-Gapped
+                        </span>
+</div>
+</div>
+<div class="flex gap-4">
+<button class="px-4 py-2 text-primary border border-primary rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-primary hover:text-white transition-all">Export Audit Log</button>
+<button class="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold uppercase tracking-widest active:opacity-80 transition-all">Emergency Purge</button>
+</div>
+</div>
+</footer>
+</main>
+<!-- Contextual FAB (Suppressed on Home by logic, but showing as a utility button for document creation if scrolled) -->
+<div class="fixed bottom-8 right-8 z-50">
+<button class="w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[28px]" data-icon="add">add</span>
+</button>
+</div>
+</body></html>

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/package-macos.sh)",
+      "Bash(open:*)",
+      "Bash(ls:*)",
+      "Bash(wc -l /Users/pumpun/IdeaProjects/LocalAiAssistant/web-app/src/*.rs)",
+      "Bash(make)",
+      "Bash(make release-macos:*)",
+      "Bash(find:*)",
+      "Bash(cargo build:*)",
+      "Bash(make:*)",
+      "Bash(du -sh /Users/pumpun/IdeaProjects/LocalAiAssistant/*)",
+      "Bash(cargo check:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

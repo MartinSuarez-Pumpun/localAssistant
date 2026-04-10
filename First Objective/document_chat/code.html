@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OLIV4600 | Document Chat</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&amp;family=Newsreader:ital,wght@0,400;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#fa813a",
+                        "surface": "#f8f9fa",
+                        "primary-fixed-dim": "#9ecaff",
+                        "background": "#f8f9fa",
+                        "on-primary-fixed-variant": "#00497c",
+                        "surface-bright": "#f8f9fa",
+                        "on-primary": "#ffffff",
+                        "surface-container": "#edeeef",
+                        "tertiary-container": "#622700",
+                        "on-surface-variant": "#43474e",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed-dim": "#abc9f2",
+                        "surface-container-low": "#f3f4f5",
+                        "outline": "#73777f",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface-container-high": "#e7e8e9",
+                        "on-secondary-container": "#3f5b7f",
+                        "primary": "#002542",
+                        "on-tertiary-fixed": "#341100",
+                        "on-secondary-fixed": "#001c38",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e1e3e4",
+                        "tertiary": "#401700",
+                        "error": "#ba1a1a",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#c3c6cf",
+                        "inverse-surface": "#2e3132",
+                        "on-surface": "#191c1d",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#2b486b",
+                        "secondary-container": "#b6d4fe",
+                        "tertiary-fixed-dim": "#ffb691",
+                        "on-primary-fixed": "#001d36",
+                        "secondary": "#436084",
+                        "on-tertiary-fixed-variant": "#783100",
+                        "primary-fixed": "#d1e4ff",
+                        "inverse-on-surface": "#f0f1f2",
+                        "inverse-primary": "#9ecaff",
+                        "on-primary-container": "#66a6ea",
+                        "tertiary-fixed": "#ffdbcb",
+                        "primary-container": "#003b65",
+                        "on-background": "#191c1d",
+                        "surface-dim": "#d9dadb",
+                        "secondary-fixed": "#d2e4ff",
+                        "error-container": "#ffdad6",
+                        "surface-tint": "#0b61a1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Newsreader"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .highlight-ref {
+            background-color: rgba(250, 129, 58, 0.2);
+            border-bottom: 2px solid #C45911;
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-surface font-label text-on-surface antialiased overflow-hidden">
+<!-- SideNavBar Component -->
+<aside class="h-screen w-[280px] fixed left-0 top-0 bg-[#002542] flex flex-col h-full py-8 px-4 z-50">
+<div class="mb-10 px-2">
+<h1 class="text-2xl font-black tracking-tighter text-white font-['Inter'] uppercase">OLIV4600</h1>
+<p class="font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-[#66a6ea] mt-1">Sovereign Intelligence</p>
+</div>
+<nav class="flex-1 space-y-1">
+<div class="bg-[#001b30] text-[#66a6ea] border-r-2 border-[#66a6ea] flex items-center gap-3 px-4 py-3 cursor-pointer group transition-all duration-200">
+<span class="material-symbols-outlined text-[20px]" data-icon="folder_open">folder_open</span>
+<span class="font-['Inter'] tracking-tight uppercase text-[11px] font-bold">Projects</span>
+</div>
+<div class="text-slate-400 hover:text-white hover:bg-[#00335c] flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit_note">edit_note</span>
+<span class="font-['Inter'] tracking-tight uppercase text-[11px] font-bold">Templates</span>
+</div>
+<div class="text-slate-400 hover:text-white hover:bg-[#00335c] flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="inventory_2">inventory_2</span>
+<span class="font-['Inter'] tracking-tight uppercase text-[11px] font-bold">Library</span>
+</div>
+<div class="text-slate-400 hover:text-white hover:bg-[#00335c] flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="memory">memory</span>
+<span class="font-['Inter'] tracking-tight uppercase text-[11px] font-bold">AI Engine</span>
+</div>
+</nav>
+<div class="mt-auto space-y-6">
+<button class="w-full bg-[#66a6ea] text-[#002542] font-black uppercase text-[11px] py-4 tracking-widest hover:bg-white transition-colors">
+                New Document
+            </button>
+<div class="space-y-4 pt-6 border-t border-white/10">
+<div class="flex items-center gap-3 px-2">
+<span class="material-symbols-outlined text-[#66a6ea] text-sm" data-icon="shield_check">shield</span>
+<span class="font-['Inter'] tracking-tight uppercase text-[10px] font-bold text-slate-400">System Offline</span>
+</div>
+<div class="flex items-center gap-3 px-2">
+<span class="material-symbols-outlined text-[#66a6ea] text-sm" data-icon="bolt">bolt</span>
+<span class="font-['Inter'] tracking-tight uppercase text-[10px] font-bold text-slate-400">Qwen 3.5 Active</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Shell -->
+<main class="ml-[280px] h-screen flex flex-col">
+<!-- TopAppBar Component -->
+<header class="flex justify-between items-center h-16 px-8 sticky top-0 z-40 bg-white/85 backdrop-blur-xl border-b border-slate-200/50">
+<div class="flex items-center gap-8">
+<div class="flex gap-6">
+<a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Editor</a>
+<a class="font-['Newsreader'] italic text-lg text-[#C45911] border-b-2 border-[#C45911] pb-1" href="#">Analysis</a>
+<a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Verifiability</a>
+<a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Audit</a>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex gap-4 items-center">
+<span class="material-symbols-outlined text-slate-500 hover:text-[#002542] cursor-pointer" data-icon="shield">shield</span>
+<span class="material-symbols-outlined text-slate-500 hover:text-[#002542] cursor-pointer" data-icon="history_edu">history_edu</span>
+<span class="material-symbols-outlined text-slate-500 hover:text-[#002542] cursor-pointer" data-icon="settings">settings</span>
+</div>
+<div class="h-6 w-[1px] bg-slate-200"></div>
+<button class="bg-[#002542] text-white px-5 py-2 font-bold text-xs uppercase tracking-widest rounded-lg hover:opacity-90 active:scale-95 transition-all">
+                    Execute Process
+                </button>
+</div>
+</header>
+<!-- 50/50 Workspace -->
+<div class="flex flex-1 overflow-hidden">
+<!-- Left Panel: Document View -->
+<section class="w-1/2 bg-surface-container-low border-r border-slate-200 p-12 overflow-y-auto relative">
+<div class="max-w-2xl mx-auto bg-white shadow-sm p-16 min-h-[110%]">
+<div class="mb-12 border-b border-slate-100 pb-8">
+<span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Report ID: DEF-2026-X4</span>
+<h2 class="font-body text-4xl text-primary mt-2">Sovereign Defense Innovation 2026</h2>
+<p class="font-label text-xs text-on-surface-variant mt-4 font-semibold italic">Classified: Internal Use Only — AI Augmented Audit</p>
+</div>
+<article class="font-body text-lg leading-relaxed text-slate-800 space-y-6">
+<p>The current landscape of defense procurement requires a fundamental shift toward <span class="highlight-ref font-bold">decentralized manufacturing hubs</span> and modular intelligence systems. By 2026, the projected expenditure for autonomous verification is expected to reach 14.2% of the total R&amp;D budget.</p>
+<h3 class="font-headline font-bold text-sm uppercase tracking-tighter text-slate-400 mt-8">Strategic Analysis</h3>
+<p>Our primary objective focuses on the integration of Sovereign LLMs into the tactical decision-making cycle. Unlike previous iterations, <span class="highlight-ref font-bold italic">the OLIV4600 engine ensures 100% data sovereignty by executing all weights locally</span> within the hardened perimeter. This eliminates the latency and security vulnerabilities associated with cloud-based inference protocols.</p>
+<p>Key risk factors identified in the Q3 audit include the instability of rare-earth supply chains and the increasing frequency of <span class="highlight-ref">adversarial prompt injection attacks</span> targeting legacy systems. It is imperative that we transition to hardware-level encryption by fiscal year end.</p>
+<div class="bg-surface-container p-6 my-8 rounded-lg border-l-4 border-primary">
+<p class="italic text-slate-600">"The architecture of the future is not built on more data, but on more verifiable intelligence." — Strategic Memo X-12</p>
+</div>
+<p>Furthermore, the development of kinetic-response AI requires a rigorous ethical framework that operates <span class="highlight-ref">independent of external connectivity</span>. This "Air-Gap Intelligence" model is the cornerstone of our current sovereign defense posture.</p>
+</article>
+</div>
+<!-- Floating Question Chips -->
+<div class="fixed bottom-10 left-[320px] flex gap-2 z-30">
+<button class="bg-white/90 backdrop-blur shadow-xl border border-slate-200 px-4 py-2 text-[11px] font-bold uppercase tracking-tight text-primary hover:bg-primary hover:text-white transition-all rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]" data-icon="child_care">child_care</span>
+                        Explain like I'm 12
+                    </button>
+<button class="bg-white/90 backdrop-blur shadow-xl border border-slate-200 px-4 py-2 text-[11px] font-bold uppercase tracking-tight text-primary hover:bg-primary hover:text-white transition-all rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]" data-icon="warning">warning</span>
+                        What are the risks?
+                    </button>
+<button class="bg-white/90 backdrop-blur shadow-xl border border-slate-200 px-4 py-2 text-[11px] font-bold uppercase tracking-tight text-primary hover:bg-primary hover:text-white transition-all rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]" data-icon="search_insights">search_insights</span>
+                        What information is missing?
+                    </button>
+</div>
+</section>
+<!-- Right Panel: Professional Chat Interface -->
+<section class="w-1/2 flex flex-col bg-white">
+<!-- Chat Header / Status Ribbon -->
+<div class="h-12 border-b border-slate-100 flex items-center justify-between px-6 bg-surface-container-low/50">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+<span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Local Instance Online</span>
+</div>
+<div class="h-4 w-[1px] bg-slate-300"></div>
+<span class="text-[10px] font-bold text-primary uppercase">Thread: Defense-Audit-X4</span>
+</div>
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-slate-400 text-sm cursor-pointer" data-icon="download">download</span>
+<span class="material-symbols-outlined text-slate-400 text-sm cursor-pointer" data-icon="more_vert">more_vert</span>
+</div>
+</div>
+<!-- Chat Canvas -->
+<div class="flex-1 overflow-y-auto p-8 space-y-8">
+<!-- System Bubble -->
+<div class="flex flex-col items-start max-w-[85%]">
+<div class="flex items-center gap-2 mb-2">
+<span class="w-6 h-6 bg-primary text-white flex items-center justify-center text-[10px] font-bold rounded">O</span>
+<span class="text-[11px] font-bold uppercase text-slate-400 tracking-tight">OLIV4600 Engine</span>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl rounded-tl-none relative group border border-slate-100">
+<p class="font-body text-lg text-slate-700 leading-snug">
+                                I've analyzed your document. What would you like to know about the sovereign defense architecture or the identified risk factors?
+                            </p>
+<button class="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-xs" data-icon="export_notes">export_notes</span>
+                                Export Answer
+                            </button>
+</div>
+</div>
+<!-- User Bubble (Context Example) -->
+<div class="flex flex-col items-end w-full">
+<div class="max-w-[75%] bg-primary text-white p-5 rounded-xl rounded-tr-none shadow-lg">
+<p class="font-label text-sm leading-relaxed">
+                                Can you elaborate on the security benefits of the local engine mentioned in the analysis?
+                            </p>
+</div>
+<span class="text-[10px] font-bold uppercase text-slate-300 mt-2 mr-1">Sent 14:22</span>
+</div>
+<!-- System Detailed Response -->
+<div class="flex flex-col items-start max-w-[90%]">
+<div class="flex items-center gap-2 mb-2">
+<span class="w-6 h-6 bg-primary text-white flex items-center justify-center text-[10px] font-bold rounded">O</span>
+<span class="text-[11px] font-bold uppercase text-slate-400 tracking-tight">OLIV4600 Engine</span>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl rounded-tl-none relative group border border-slate-100 space-y-4">
+<p class="font-body text-lg text-slate-700 leading-snug">
+                                Based on the highlighted sections of the report, the security benefits of the local OLIV4600 engine are three-fold:
+                            </p>
+<ul class="space-y-3 font-label text-sm text-slate-600">
+<li class="flex gap-3">
+<span class="font-bold text-primary">01.</span>
+<span><strong class="text-primary">Data Sovereignty:</strong> By operating within a hardened perimeter, no raw document data or inference metadata ever traverses the public internet, mitigating the risk of MITM attacks.</span>
+</li>
+<li class="flex gap-3">
+<span class="font-bold text-primary">02.</span>
+<span><strong class="text-primary">Latency Elimination:</strong> Local execution ensures deterministic response times for kinetic-response applications where millisecond delays are critical.</span>
+</li>
+<li class="flex gap-3">
+<span class="font-bold text-primary">03.</span>
+<span><strong class="text-primary">Verification:</strong> The engine supports hardware-level auditing, allowing human operators to verify the exact compute paths used to generate an intelligence output.</span>
+</li>
+</ul>
+<div class="pt-4 flex gap-4">
+<button class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-primary group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-xs" data-icon="content_copy">content_copy</span>
+                                    Copy
+                                </button>
+<button class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-primary group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-xs" data-icon="export_notes">export_notes</span>
+                                    Export Answer
+                                </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Input Field -->
+<div class="p-8 bg-white border-t border-slate-100">
+<div class="relative flex items-end gap-4 bg-surface-container-low rounded-xl p-4 border border-slate-200 focus-within:border-primary transition-all">
+<textarea class="flex-1 bg-transparent border-none focus:ring-0 font-label text-sm text-on-surface placeholder:text-slate-400 resize-none max-h-32" placeholder="Ask the sovereign engine anything about this document..." rows="2"></textarea>
+<div class="flex gap-2">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="attach_file">attach_file</span>
+</button>
+<button class="bg-[#C45911] text-white p-3 rounded-lg shadow-md hover:bg-tertiary transition-all active:scale-95">
+<span class="material-symbols-outlined" data-icon="send">send</span>
+</button>
+</div>
+</div>
+<div class="mt-4 flex justify-between items-center px-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px] text-emerald-500" data-icon="verified_user" data-weight="fill">verified_user</span>
+<span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">Secure Audit Mode Enabled</span>
+</div>
+<span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">Context Window: 12.4k tokens</span>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- 100% Offline Badge (Floating) -->
+<div class="fixed top-20 right-8 z-50 pointer-events-none">
+<div class="bg-primary text-on-primary-container px-3 py-1 border border-[#66a6ea]/30 rounded-full flex items-center gap-2 shadow-2xl backdrop-blur-md">
+<span class="material-symbols-outlined text-[14px]" data-icon="leak_remove">leak_remove</span>
+<span class="text-[9px] font-black uppercase tracking-[0.2em]">100% Offline Intelligence</span>
+</div>
+</div>
+</body></html>

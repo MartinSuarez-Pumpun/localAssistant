@@ -1,0 +1,30 @@
+# Build artifacts
+build/
+dist/
+web/dist/
+
+# Rust targets
+target/
+**/target/
+
+# WASM / Trunk output
+web-app/dist/
+plugins/*/app/index.html
+plugins/*/app/*.wasm
+plugins/*/app/*.js
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# IntelliJ (keep .idea/ for workspace config but ignore caches)
+.idea/workspace.xml
+.idea/usage.statistics.xml
+.idea/shelf/
+
+# Local symlink to ~/.local-ai data
+.local-ai-readonly
+
+# Secrets / local config
+.env
+*.local
