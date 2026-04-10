@@ -1,0 +1,49 @@
+[package]
+name = "serve-rs"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "serve-rs"
+path = "src/main.rs"
+
+[dependencies]
+# HTTP framework
+axum = { version = "0.7", features = ["macros", "multipart"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "cors"] }
+
+# HTTP client (LLM proxy)
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# JSON
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Streaming / async
+futures = "0.3"
+futures-util = "0.3"
+tokio-stream = "0.1"
+bytes = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Fuzzy matching (reemplaza Levenshtein de Python)
+strsim = "0.11"
+
+# Utilidades
+anyhow = "1"
+thiserror = "1"
+clap = { version = "4", features = ["derive"] }
+dirs = "5"
+walkdir = "2"
+pdf-extract = "0.7"
+docx-rs = "0.4"
+zip = "2"
+printpdf = "0.7"
+# Ventana nativa con WebView embebido (sin browser externo)
+wry = "0.44"
+tao = "0.30"
