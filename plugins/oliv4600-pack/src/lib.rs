@@ -20,42 +20,142 @@ enum View {
     Analysis,
     Chat,
     Pipeline,
+    Archive,
     Audit,
 }
 
-// ─── Static sample data ───────────────────────────────────────────────────────
-// TODO: Replace with live data fetched from /api/projects (GET) which reads
-// from ~/.local-ai/workspace/. Each entry represents a root document with
-// its processing history stored in SQLite (TRA-001, TRA-002).
+// ─── API response types ───────────────────────────────────────────────────────
 
-#[derive(Clone)]
-struct Transformation {
-    name:  &'static str,
-    kind:  &'static str,
-    badge: &'static str,
-    ts:    &'static str,
+use serde::{Deserialize, Serialize};
+
+/// Row returned by GET /api/transformations
+#[derive(Clone, Serialize, Deserialize)]
+struct ApiTransform {
+    #[allow(dead_code)]
+    id:         i64,
+    doc_name:   String,
+    action:     String,
+    #[allow(dead_code)]
+    word_count: u32,
+    created_at: String,
 }
 
-const TRANSFORMATIONS: &[Transformation] = &[
-    Transformation {
-        name:  "Q4_Budget_Review_V2.pdf",
-        kind:  "Executive Summary",
-        badge: "bg-[#003b65] text-[#66a6ea]",
-        ts:    "Apr 08, 2026 — 14:32",
-    },
-    Transformation {
-        name:  "Annual_Sustainability_Report.docx",
-        kind:  "Press Release Draft",
-        badge: "bg-[#622700] text-[#fa813a]",
-        ts:    "Apr 07, 2026 — 09:15",
-    },
-    Transformation {
-        name:  "Strategic_Vision_2027.odt",
-        kind:  "LinkedIn Optimization",
-        badge: "bg-surf-highest text-on-surf-var",
-        ts:    "Apr 06, 2026 — 18:44",
-    },
-];
+/// Proyecto del plugin — fila de oliv_projects
+#[derive(Clone, Serialize, Deserialize)]
+struct ApiProject {
+    doc_hash:        String,
+    doc_name:        String,
+    #[allow(dead_code)]
+    original_path:   String,
+    word_count:      u32,
+    transform_count: u32,
+    has_analysis:    bool,
+    created_at:      String,
+    updated_at:      String,
+}
+
+/// Row returned by GET /api/documents
+#[derive(Clone, Serialize, Deserialize)]
+struct ApiDocument {
+    doc_name:    String,
+    #[allow(dead_code)]
+    last_action: String,
+    #[allow(dead_code)]
+    count:       u32,
+    #[allow(dead_code)]
+    last_used:   String,
+}
+
+/// Wrapper for both API responses: { ok: bool, data: [...] }
+#[derive(Serialize, Deserialize)]
+struct ApiResponse<T> {
+    #[allow(dead_code)]
+    ok:   bool,
+    data: Vec<T>,
+}
+
+// ─── API helper ───────────────────────────────────────────────────────────────
+
+async fn fetch_json<T: for<'de> Deserialize<'de>>(url: &str) -> Option<T> {
+    let window = web_sys::window()?;
+    let resp: web_sys::Response = wasm_bindgen_futures::JsFuture::from(
+        window.fetch_with_str(url)
+    ).await.ok()?.unchecked_into();
+    let text = wasm_bindgen_futures::JsFuture::from(resp.text().ok()?)
+        .await.ok()?.as_string()?;
+    serde_json::from_str(&text).ok()
+}
+
+// ─── Helpers de BD para plugins ──────────────────────────────────────────────
+//
+// El plugin gestiona sus propias tablas a través de los endpoints genéricos del
+// core. Nunca accede directamente a SQLite — todo va por HTTP sobre localhost.
+//
+//   plugin_migrate(sql)           → POST /api/plugin/db/migrate
+//   plugin_query(sql, params)     → POST /api/plugin/db/query  (SELECT/INSERT/...)
+
+async fn plugin_migrate(sql: &str) -> bool {
+    let body = serde_json::json!({ "sql": sql }).to_string();
+    let headers = web_sys::Headers::new().unwrap();
+    headers.set("Content-Type", "application/json").unwrap();
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+    opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+    let Ok(req) = web_sys::Request::new_with_str_and_init("/api/plugin/db/migrate", &opts)
+        else { return false };
+    let Some(window) = web_sys::window() else { return false };
+    match JsFuture::from(window.fetch_with_request(&req)).await {
+        Ok(rv) => { let r: web_sys::Response = rv.unchecked_into(); r.ok() },
+        Err(_) => false,
+    }
+}
+
+async fn plugin_query(
+    sql:    &str,
+    params: Vec<serde_json::Value>,
+) -> Vec<serde_json::Value> {
+    let body = serde_json::json!({ "sql": sql, "params": params }).to_string();
+    let headers = web_sys::Headers::new().unwrap();
+    headers.set("Content-Type", "application/json").unwrap();
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+    opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+    let Ok(req) = web_sys::Request::new_with_str_and_init("/api/plugin/db/query", &opts)
+        else { return vec![] };
+    let Some(window) = web_sys::window() else { return vec![] };
+    let Ok(rv) = JsFuture::from(window.fetch_with_request(&req)).await else { return vec![] };
+    let resp: web_sys::Response = rv.unchecked_into();
+    if !resp.ok() { return vec![]; }
+    let Ok(jv) = JsFuture::from(resp.json().unwrap()).await else { return vec![] };
+    let Ok(s) = js_sys::JSON::stringify(&jv) else { return vec![] };
+    let json_str = s.as_string().unwrap_or_default();
+    serde_json::from_str::<serde_json::Value>(&json_str)
+        .ok()
+        .and_then(|v| v["rows"].as_array().cloned())
+        .unwrap_or_default()
+}
+
+/// Map an action slug to a human-readable label.
+fn action_badge(action: &str) -> (&'static str, &'static str) {
+    match action {
+        "executive_summary" | "detailed_summary" =>
+            ("bg-[#003b65] text-[#66a6ea]",   "Summary"),
+        "press_release"     =>
+            ("bg-[#622700] text-[#fa813a]",   "Press Release"),
+        "linkedin_post"     =>
+            ("bg-[#003b65] text-[#66a6ea]",   "LinkedIn"),
+        "academic_abstract" =>
+            ("bg-surf-highest text-on-surf-var", "Abstract"),
+        "blog_article"      =>
+            ("bg-surf-highest text-on-surf-var", "Blog Article"),
+        "briefing_note"     =>
+            ("bg-surf-highest text-on-surf-var", "Briefing"),
+        _                   =>
+            ("bg-surf-highest text-on-surf-var", "Transform"),
+    }
+}
 
 // ─── Document Context ─────────────────────────────────────────────────────────
 // Compartido vía Leptos context (provide_context / use_context).
@@ -64,28 +164,35 @@ const TRANSFORMATIONS: &[Transformation] = &[
 #[derive(Clone, Copy)]
 struct DocumentCtx {
     /// Texto completo del documento cargado (ING-001..ING-003)
-    text:         RwSignal<String>,
+    text:           RwSignal<String>,
     /// Nombre del archivo cargado
-    filename:     RwSignal<String>,
+    filename:       RwSignal<String>,
     /// Número de palabras
-    word_count:   RwSignal<u32>,
+    word_count:     RwSignal<u32>,
+    /// SHA-256 hex del texto — clave de proyecto en BD. Se rellena desde
+    /// /api/extract (que lo calcula en servidor) o desde sha256_hex() en WASM.
+    doc_hash:       RwSignal<String>,
     /// True mientras hay procesamiento en curso
-    processing:   RwSignal<bool>,
+    processing:     RwSignal<bool>,
     /// Texto generado (streaming token por token)
-    output:       RwSignal<String>,
+    output:         RwSignal<String>,
     /// Etiqueta de la última acción ejecutada
-    output_label: RwSignal<String>,
+    output_label:   RwSignal<String>,
+    /// Acción pre-seleccionada cuando se navega desde el Dashboard (slug)
+    pending_action: RwSignal<Option<String>>,
 }
 
 impl DocumentCtx {
     fn new() -> Self {
         Self {
-            text:         RwSignal::new(String::new()),
-            filename:     RwSignal::new(String::new()),
-            word_count:   RwSignal::new(0),
-            processing:   RwSignal::new(false),
-            output:       RwSignal::new(String::new()),
-            output_label: RwSignal::new(String::new()),
+            text:           RwSignal::new(String::new()),
+            filename:       RwSignal::new(String::new()),
+            word_count:     RwSignal::new(0),
+            doc_hash:       RwSignal::new(String::new()),
+            processing:     RwSignal::new(false),
+            output:         RwSignal::new(String::new()),
+            output_label:   RwSignal::new(String::new()),
+            pending_action: RwSignal::new(None),
         }
     }
 }
@@ -139,9 +246,35 @@ fn upload_and_load(file: web_sys::File, ctx: DocumentCtx, set_active_view: Write
             Err(_) => { ctx.processing.set(false); return; }
         };
         if let Ok(ex) = serde_json::from_str::<serde_json::Value>(&json2) {
-            if let Some(t) = ex["text"].as_str()     { ctx.text.set(t.to_string()); }
-            if let Some(f) = ex["filename"].as_str() { ctx.filename.set(f.to_string()); }
-            if let Some(w) = ex["word_count"].as_u64() { ctx.word_count.set(w as u32); }
+            let text     = ex["text"].as_str().unwrap_or("").to_string();
+            let filename = ex["filename"].as_str().unwrap_or("").to_string();
+            let doc_hash = ex["doc_hash"].as_str().unwrap_or("").to_string();
+            let wc       = ex["word_count"].as_u64().unwrap_or(0) as u32;
+
+            ctx.text.set(text);
+            ctx.filename.set(filename.clone());
+            ctx.doc_hash.set(doc_hash.clone());
+            ctx.word_count.set(wc);
+
+            // Registrar/actualizar proyecto en la tabla del plugin
+            if !doc_hash.is_empty() {
+                plugin_query(
+                    "INSERT INTO oliv_projects \
+                     (doc_hash, doc_name, original_path, word_count) \
+                     VALUES (?1,?2,?3,?4) \
+                     ON CONFLICT(doc_hash) DO UPDATE SET \
+                       doc_name = excluded.doc_name, \
+                       word_count = excluded.word_count, \
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')",
+                    vec![
+                        serde_json::json!(doc_hash),
+                        serde_json::json!(filename),
+                        serde_json::json!(path),
+                        serde_json::json!(wc),
+                    ],
+                ).await;
+            }
+
             set_active_view.set(View::Editor);
         }
         ctx.processing.set(false);
@@ -161,9 +294,13 @@ fn run_transform(
         ctx.output.set(String::new());
         ctx.output_label.set(action_label(&action).to_string());
         let body = serde_json::json!({
-            "text": ctx.text.get_untracked(), "action": action,
-            "length_words": length_words, "tone": tone.to_string(),
-            "audience": audience, "language": language,
+            "text":         ctx.text.get_untracked(),
+            "action":       action,
+            "doc_name":     ctx.filename.get_untracked(),
+            "length_words": length_words,
+            "tone":         tone.to_string(),
+            "audience":     audience,
+            "language":     language,
         }).to_string();
         let headers = web_sys::Headers::new().unwrap();
         headers.set("Content-Type", "application/json").unwrap();
@@ -265,9 +402,9 @@ async fn read_sse_stream<F: Fn(String), D: Fn()>(resp: web_sys::Response, on_tok
 fn copy_to_clipboard(text: String) {
     spawn_local(async move {
         if let Some(w) = web_sys::window() {
-            if let Some(cb) = w.navigator().clipboard() {
-                let _ = JsFuture::from(cb.write_text(&text)).await;
-            }
+            // En esta versión de web-sys, clipboard() devuelve Clipboard directamente
+            let cb = w.navigator().clipboard();
+            let _ = JsFuture::from(cb.write_text(&text)).await;
         }
     });
 }
@@ -347,6 +484,96 @@ fn action_label(action: &str) -> &'static str {
     }
 }
 
+// ─── Helper: descarga un string como archivo (EXO-001, EXO-005) ──────────────
+
+fn download_text(text: String, filename: &str, mime: &str) {
+    use wasm_bindgen::JsValue;
+    let Some(window) = web_sys::window() else { return };
+    let Some(document) = window.document() else { return };
+    // Crear Blob con el contenido
+    let parts = js_sys::Array::new();
+    parts.push(&JsValue::from_str(&text));
+    let mut opts = web_sys::BlobPropertyBag::new();
+    opts.type_(mime);
+    let Ok(blob) = web_sys::Blob::new_with_str_sequence_and_options(&parts, &opts) else { return };
+    let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) else { return };
+    // Crear <a> temporal y hacer click
+    let Ok(el) = document.create_element("a") else { return };
+    let a: web_sys::HtmlAnchorElement = el.unchecked_into();
+    a.set_href(&url);
+    a.set_download(filename);
+    if let Some(body) = document.body() {
+        let _ = body.append_child(&a);
+        a.click();
+        let _ = body.remove_child(&a);
+    }
+    let _ = web_sys::Url::revoke_object_url(&url);
+}
+
+// ─── Helper: guardar documento vía /api/export/render ────────────────────────
+// El servidor escribe el archivo en ~/.local-ai/workspace/ y lo revela en
+// Finder. WKWebView no soporta blob-downloads, por eso nunca descargamos
+// binario al frontend: todo ocurre en el lado Rust.
+
+async fn fetch_render(
+    text:   String,
+    label:  String,
+    format: String,
+    _fname: String,           // reservado; el servidor decide el nombre final
+    toast:  RwSignal<Option<String>>,
+) {
+    use wasm_bindgen::JsValue;
+    let body_json = serde_json::json!({
+        "text":   text,
+        "label":  label,
+        "format": format,
+    }).to_string();
+
+    let headers = web_sys::Headers::new().unwrap();
+    headers.set("Content-Type", "application/json").unwrap();
+
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&JsValue::from_str(&body_json));
+    opts.set_headers(&JsValue::from(headers));
+
+    let req  = web_sys::Request::new_with_str_and_init("/api/export/render", &opts).unwrap();
+    let win  = web_sys::window().unwrap();
+
+    let msg = match JsFuture::from(win.fetch_with_request(&req)).await {
+        Err(_) => "Error de red al contactar el servidor.".to_string(),
+        Ok(rv) => {
+            let resp: web_sys::Response = rv.unchecked_into();
+            if !resp.ok() {
+                format!("Error del servidor ({})", resp.status())
+            } else {
+                // Leer JSON de confirmación
+                match JsFuture::from(resp.json().unwrap()).await {
+                    Err(_) => "Guardado (no se pudo leer respuesta).".to_string(),
+                    Ok(jv) => {
+                        // { ok, filename, path }
+                        let fname = js_sys::Reflect::get(&jv, &JsValue::from_str("filename"))
+                            .ok()
+                            .and_then(|v| v.as_string())
+                            .unwrap_or_default();
+                        if fname.is_empty() {
+                            "✓ Guardado en workspace".to_string()
+                        } else {
+                            format!("✓ Guardado: {fname}  (Finder abierto)")
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    // Mostrar toast durante 4 segundos
+    toast.set(Some(msg));
+    let toast_clone = toast;
+    gloo_timers::future::TimeoutFuture::new(4_000).await;
+    toast_clone.set(None);
+}
+
 // ─── Helper: etiqueta de tono ─────────────────────────────────────────────────
 
 fn tone_label(t: u32) -> &'static str {
@@ -379,6 +606,39 @@ pub fn main() {
 
 #[component]
 fn App() -> impl IntoView {
+    // ── Migraciones del plugin ────────────────────────────────────────────────
+    // Al arrancar, el plugin declara sus propias tablas vía el endpoint genérico
+    // del core. El core no conoce estas tablas — solo ejecuta el DDL.
+    spawn_local(async {
+        plugin_migrate(r#"
+            CREATE TABLE IF NOT EXISTS oliv_projects (
+                doc_hash        TEXT    PRIMARY KEY,
+                doc_name        TEXT    NOT NULL DEFAULT '',
+                original_path   TEXT    NOT NULL DEFAULT '',
+                word_count      INTEGER NOT NULL DEFAULT 0,
+                transform_count INTEGER NOT NULL DEFAULT 0,
+                has_analysis    INTEGER NOT NULL DEFAULT 0,
+                created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+                updated_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_oliv_projects_updated
+                ON oliv_projects(updated_at DESC);
+            CREATE TABLE IF NOT EXISTS oliv_analysis_cache (
+                doc_hash        TEXT    PRIMARY KEY,
+                doc_name        TEXT    NOT NULL DEFAULT '',
+                word_count      INTEGER NOT NULL DEFAULT 0,
+                readability_raw TEXT    NOT NULL DEFAULT '',
+                sentiment_raw   TEXT    NOT NULL DEFAULT '',
+                anomalies_raw   TEXT    NOT NULL DEFAULT '',
+                ner_raw         TEXT    NOT NULL DEFAULT '',
+                keywords_raw    TEXT    NOT NULL DEFAULT '',
+                timeline_raw    TEXT    NOT NULL DEFAULT '',
+                impact_raw      TEXT    NOT NULL DEFAULT '',
+                created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+            );
+        "#).await;
+    });
+
     let (active_nav, set_active_nav) = signal("Projects");
     let (active_view, set_active_view) = signal(View::Dashboard);
     let (drag_over, set_drag_over)     = signal(false);
@@ -399,11 +659,12 @@ fn App() -> impl IntoView {
                     _                         => "flex-1 overflow-y-auto",
                 }>
                     // Overlay de procesamiento global
+                    // Indicador de procesamiento — sólo en esquina, sin blur, sin bloquear clicks
                     {move || doc_ctx.processing.get().then(|| view! {
-                        <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none">
-                            <div class="bg-primary text-[#66a6ea] px-6 py-3 rounded-lg flex items-center gap-3 shadow-2xl">
+                        <div class="fixed top-20 right-6 z-[100] pointer-events-none">
+                            <div class="bg-primary text-[#66a6ea] px-4 py-2 rounded-lg flex items-center gap-2 shadow-2xl">
                                 <div class="w-2 h-2 rounded-full bg-[#66a6ea] animate-pulse"></div>
-                                <span class="text-xs font-black uppercase tracking-widest">
+                                <span class="text-[10px] font-black uppercase tracking-widest">
                                     "Procesando..."
                                 </span>
                             </div>
@@ -415,6 +676,7 @@ fn App() -> impl IntoView {
                         View::Analysis  => view! { <AnalysisView/> }.into_any(),
                         View::Chat      => view! { <ChatView/> }.into_any(),
                         View::Pipeline  => view! { <PipelineView/> }.into_any(),
+                        View::Archive   => view! { <ArchiveView set_active_view/> }.into_any(),
                         View::Audit     => view! { <AuditView/> }.into_any(),
                     }}
                 </main>
@@ -438,10 +700,37 @@ fn App() -> impl IntoView {
 
 #[component]
 fn Sidebar(
-    active_nav:     ReadSignal<&'static str>,
-    set_active_nav: WriteSignal<&'static str>,
+    active_nav:      ReadSignal<&'static str>,
+    set_active_nav:  WriteSignal<&'static str>,
     set_active_view: WriteSignal<View>,
 ) -> impl IntoView {
+    // ── Live recent documents from SQLite ─────────────────────────────────────
+    // JsFuture is !Send (uses Rc internally), so we can't use Resource::new.
+    // Instead: populate a signal via spawn_local (single-threaded WASM executor).
+    // Proyectos recientes — el plugin consulta su propia tabla vía plugin_query
+    let recent_docs: RwSignal<Option<Vec<ApiProject>>> = RwSignal::new(None);
+    spawn_local(async move {
+        let rows = plugin_query(
+            "SELECT doc_hash, doc_name, original_path, word_count, \
+             transform_count, has_analysis, created_at, updated_at \
+             FROM oliv_projects ORDER BY updated_at DESC LIMIT 5",
+            vec![],
+        ).await;
+        let projects = rows.into_iter().filter_map(|r| {
+            Some(ApiProject {
+                doc_hash:        r["doc_hash"].as_str()?.to_string(),
+                doc_name:        r["doc_name"].as_str()?.to_string(),
+                original_path:   r["original_path"].as_str()?.to_string(),
+                word_count:      r["word_count"].as_u64()? as u32,
+                transform_count: r["transform_count"].as_u64()? as u32,
+                has_analysis:    r["has_analysis"].as_i64()? != 0,
+                created_at:      r["created_at"].as_str()?.to_string(),
+                updated_at:      r["updated_at"].as_str()?.to_string(),
+            })
+        }).collect::<Vec<_>>();
+        recent_docs.set(Some(projects));
+    });
+
     view! {
         <aside class="bg-[#002542] w-[280px] h-full flex flex-col py-8 px-4 shrink-0">
             // Clicking the brand mark returns to the Dashboard home screen.
@@ -463,9 +752,13 @@ fn Sidebar(
                     // TODO (Module 12 — Templates): show the template library where users can
                     // browse, preview, and apply organizational document templates (PLT-001..PLT-004).
                     <NavItem icon="edit_note"    label="Templates" active=active_nav set_active=set_active_nav/>
-                    // TODO (Library): shows all exported documents from ~/.local-ai/workspace/
-                    // with full-text search (EXT-003 keyword index), filter by type, sort by date.
-                    <NavItem icon="inventory_2"  label="Library"   active=active_nav set_active=set_active_nav/>
+                    <div
+                        class="flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors text-slate-400 hover:text-white hover:bg-[#00335c]"
+                        on:click=move |_| set_active_view.set(View::Archive)
+                    >
+                        <span class="material-symbols-outlined text-[20px]">"inventory_2"</span>
+                        <span class="font-sans font-bold text-[11px] uppercase tracking-widest">"Library"</span>
+                    </div>
                     // TODO (AI Engine): configuration panel for the local LLM instance —
                     // model selection, inference parameters (temperature, context window),
                     // Ollama endpoint health, and memory/disk usage stats.
@@ -474,12 +767,42 @@ fn Sidebar(
 
                 <NavSection label="Recent Projects">
                     <div class="space-y-0.5 px-2">
-                        // TODO: Each recent item should be clickable to re-open that project,
-                        // loading its source document into the global document context and
-                        // navigating to View::Editor. Truncate label to 28 chars with ellipsis.
-                        <RecentItem label="Q4 Fiscal Policy Draft"/>
-                        <RecentItem label="Institutional Audit Log"/>
-                        <RecentItem label="Press Release: Sovereign..."/>
+                        {move || match recent_docs.get() {
+                            None => view! {
+                                <div class="text-[12px] text-slate-500 italic py-1 px-2">"Cargando…"</div>
+                            }.into_any(),
+                            Some(docs) if docs.is_empty() => view! {
+                                <div class="text-[12px] text-slate-500 italic py-1 px-2">
+                                    "Sin documentos recientes"
+                                </div>
+                            }.into_any(),
+                            Some(docs) => docs.into_iter().map(|d| {
+                                let name = d.doc_name.split('/').last()
+                                    .unwrap_or(&d.doc_name)
+                                    .to_string();
+                                let label = if name.len() > 26 {
+                                    format!("{}…", &name[..26])
+                                } else { name };
+                                let has_a = d.has_analysis;
+                                view! {
+                                    <div
+                                        class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-[#00335c] transition-colors group"
+                                        on:click=move |_| set_active_view.set(View::Archive)
+                                    >
+                                        <span class="material-symbols-outlined text-[14px] text-slate-500 group-hover:text-slate-300 shrink-0">
+                                            "description"
+                                        </span>
+                                        <span class="text-[12px] text-slate-400 group-hover:text-white truncate flex-1">
+                                            {label}
+                                        </span>
+                                        // Badge análisis disponible
+                                        {has_a.then(|| view! {
+                                            <span class="w-1.5 h-1.5 rounded-full bg-[#66a6ea] shrink-0"></span>
+                                        })}
+                                    </div>
+                                }
+                            }).collect_view().into_any(),
+                        }}
                     </div>
                 </NavSection>
 
@@ -569,7 +892,7 @@ fn NavItem(
 }
 
 #[component]
-fn RecentItem(label: &'static str) -> impl IntoView {
+fn RecentItem(label: String) -> impl IntoView {
     view! {
         <div class="text-[13px] text-slate-300 py-1 cursor-pointer hover:text-white truncate">
             {label}
@@ -718,8 +1041,19 @@ fn DashboardView(
     drag_over:       ReadSignal<bool>,
     set_drag_over:   WriteSignal<bool>,
 ) -> impl IntoView {
-    let ctx           = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let ctx            = use_context::<DocumentCtx>().expect("DocumentCtx");
     let file_input_ref = NodeRef::<leptos::html::Input>::new();
+
+    // ── Live transformations from SQLite ──────────────────────────────────────
+    // JsFuture is !Send — use spawn_local + RwSignal instead of Resource.
+    let transforms: RwSignal<Option<Vec<ApiTransform>>> = RwSignal::new(None);
+    spawn_local(async move {
+        let data = fetch_json::<ApiResponse<ApiTransform>>("/api/transformations?limit=20")
+            .await
+            .map(|r| r.data)
+            .unwrap_or_default();
+        transforms.set(Some(data));
+    });
 
     view! {
         <section class="p-8 max-w-7xl mx-auto space-y-8">
@@ -835,16 +1169,24 @@ fn DashboardView(
                         <span class="material-symbols-outlined text-[200px]">"memory"</span>
                     </div>
                 </div>
-                // TODO (Module 2 — RES-001..RES-007): clicking "Summarize" pre-selects
-                // the "Summarize" action in EditorView's control panel and navigates there.
-                // Wire: on:click=move |_| set_active_view.set(View::Editor)
-                <ActionCard icon="summarize"  icon_color="text-action"       title="Summarize"    desc="Executive distillation of core concepts."/>
-                // TODO (Module 3 — GEN-001): pre-select "Press Release" action in EditorView.
-                // Wire: on:click=move |_| set_active_view.set(View::Editor)
-                <ActionCard icon="campaign"   icon_color="text-action"       title="Press Release" desc="Draft professional public communications."/>
-                // TODO (Module CHA — CHA-001): navigate to Chat view.
-                // Wire: on:click=move |_| set_active_view.set(View::Chat)
-                <ActionCard icon="forum"      icon_color="text-[#66a6ea]"    title="Chat with Doc" desc="Direct query dialogue with your source text."/>
+                <ActionCard icon="summarize" icon_color="text-action"
+                    title="Summarize" desc="Executive distillation of core concepts."
+                    on_click=move || {
+                        ctx.pending_action.set(Some("executive_summary".to_string()));
+                        set_active_view.set(View::Editor);
+                    }
+                />
+                <ActionCard icon="campaign" icon_color="text-action"
+                    title="Press Release" desc="Draft professional public communications."
+                    on_click=move || {
+                        ctx.pending_action.set(Some("press_release".to_string()));
+                        set_active_view.set(View::Editor);
+                    }
+                />
+                <ActionCard icon="forum" icon_color="text-[#66a6ea]"
+                    title="Chat with Doc" desc="Direct query dialogue with your source text."
+                    on_click=move || set_active_view.set(View::Chat)
+                />
             </div>
 
             // ── Recent Transformations Table ───────────────────────────────────
@@ -864,7 +1206,10 @@ fn DashboardView(
                             "History of processed intelligence"
                         </p>
                     </div>
-                    <button class="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1 hover:underline">
+                    <button
+                        on:click=move |_| set_active_view.set(View::Archive)
+                        class="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1 hover:underline"
+                    >
                         "View Full Archive"
                         <span class="material-symbols-outlined text-[16px]">"arrow_forward"</span>
                     </button>
@@ -882,9 +1227,33 @@ fn DashboardView(
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            {TRANSFORMATIONS.iter().map(|t| view! {
-                                <TransformationRow t=t.clone()/>
-                            }).collect_view()}
+                            {move || match transforms.get() {
+                                None => view! {
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-8 text-center text-xs text-slate-400 italic">
+                                            "Cargando historial…"
+                                        </td>
+                                    </tr>
+                                }.into_any(),
+                                Some(rows) if rows.is_empty() => view! {
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-8 text-center text-xs text-slate-400 italic">
+                                            "No hay transformaciones todavía. Procesa un documento para empezar."
+                                        </td>
+                                    </tr>
+                                }.into_any(),
+                                Some(rows) => rows.into_iter().map(|t| {
+                                    let (badge, label) = action_badge(&t.action);
+                                    view! {
+                                        <TxRow
+                                            doc_name=t.doc_name
+                                            kind=label.to_string()
+                                            badge=badge.to_string()
+                                            ts=t.created_at
+                                        />
+                                    }
+                                }).collect_view().into_any(),
+                            }}
                         </tbody>
                     </table>
                 </div>
@@ -963,10 +1332,13 @@ fn ActionCard(
     icon_color: &'static str,
     title:      &'static str,
     desc:       &'static str,
+    on_click:   impl Fn() + 'static,
 ) -> impl IntoView {
     view! {
-        // TODO: add on:click handler when navigation is wired (see usage-site comments above)
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-transparent hover:border-outline-var transition-all cursor-pointer group">
+        <div
+            class="bg-white p-6 rounded-xl shadow-sm border border-transparent hover:border-outline-var hover:shadow-md transition-all cursor-pointer group active:scale-[0.98]"
+            on:click=move |_| on_click()
+        >
             <span class=format!("material-symbols-outlined {icon_color} mb-4 block")>{icon}</span>
             <h4 class="font-sans font-bold text-sm uppercase tracking-tight mb-1 text-primary">{title}</h4>
             <p class="text-on-surf-var text-xs font-serif italic">{desc}</p>
@@ -984,21 +1356,28 @@ fn Th(children: Children) -> impl IntoView {
 }
 
 #[component]
-fn TransformationRow(t: Transformation) -> impl IntoView {
+fn TxRow(doc_name: String, kind: String, badge: String, ts: String) -> impl IntoView {
+    // Show only the filename part (strip path prefixes)
+    let short_name = doc_name.split('/').last()
+        .unwrap_or(&doc_name)
+        .to_string();
+    // Format the ISO timestamp to something readable, e.g. "2026-04-08T14:32:00Z" → "Apr 08, 2026 — 14:32"
+    let display_ts = ts.get(..16).unwrap_or(&ts).replace('T', " — ");
+
     view! {
         <tr class="hover:bg-surf-low transition-colors group">
             <td class="px-6 py-4">
                 <div class="flex items-center gap-3">
                     <span class="material-symbols-outlined text-slate-400">"description"</span>
-                    <span class="font-sans font-bold text-sm text-primary">{t.name}</span>
+                    <span class="font-sans font-bold text-sm text-primary">{short_name}</span>
                 </div>
             </td>
             <td class="px-6 py-4">
-                <span class=format!("px-2.5 py-1 {} rounded text-[10px] font-black uppercase tracking-tighter", t.badge)>
-                    {t.kind}
+                <span class=format!("px-2.5 py-1 {} rounded text-[10px] font-black uppercase tracking-tighter", badge)>
+                    {kind}
                 </span>
             </td>
-            <td class="px-6 py-4 text-xs text-on-surf-var">{t.ts}</td>
+            <td class="px-6 py-4 text-xs text-on-surf-var">{display_ts}</td>
             <td class="px-6 py-4 text-right">
                 <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <RowBtn icon="visibility"/>
@@ -1037,7 +1416,14 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
     let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
 
     // ── Parámetros del panel de control ──────────────────────────────────────
-    let (selected_action, set_selected_action) = signal("executive_summary".to_string());
+    // Pre-select action if the Dashboard navigated here with a pending_action.
+    let initial_action = ctx.pending_action
+        .get_untracked()
+        .unwrap_or_else(|| "executive_summary".to_string());
+    // Consume the pending_action so it doesn't re-apply on future mounts.
+    ctx.pending_action.set(None);
+
+    let (selected_action, set_selected_action) = signal(initial_action);
     let (length_words,    set_length)          = signal(250u32);
     let (tone,            set_tone)            = signal(4u32);
     let (audience,        set_audience)        = signal("technical".to_string());
@@ -1046,6 +1432,10 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
 
     // Señal derivada: ¿hay resultado para mostrar?
     let has_output = move || !ctx.output.get().is_empty();
+    // Modal de exportación
+    let show_export = RwSignal::new(false);
+    // Toast de confirmación de guardado
+    let save_toast: RwSignal<Option<String>> = RwSignal::new(None);
 
     view! {
         <div class="h-full flex overflow-hidden">
@@ -1303,144 +1693,158 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                     </div>
                 </div>
 
-                // Generate button — the primary CTA of the editor
-                // TODO: on click → POST /api/transform with all parameters.
-                // Show a streaming SSE response in the right panel using an EventSource.
-                // Display token-by-token streaming with a blinking cursor.
-                // On completion: store result in project history (TRA-001).
+                // Generate button — CTA principal del editor (§8.3 motor de prompts)
                 <div class="p-4 bg-[#001b30]">
-                    <button class="w-full bg-[#2E75B6] hover:bg-[#66a6ea] active:scale-[0.98] transition-all text-white py-4 rounded-sm flex flex-col items-center justify-center gap-1 group shadow-[0_0_20px_rgba(46,117,182,0.3)]">
+                    <button
+                        class="w-full bg-[#2E75B6] hover:bg-[#66a6ea] active:scale-[0.98] transition-all text-white py-4 rounded-sm flex flex-col items-center justify-center gap-1 group shadow-[0_0_20px_rgba(46,117,182,0.3)] disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled=move || ctx.processing.get() || ctx.text.get().is_empty()
+                        on:click=move |_| {
+                            run_transform(
+                                ctx,
+                                selected_action.get_untracked(),
+                                length_words.get_untracked(),
+                                tone.get_untracked(),
+                                audience.get_untracked(),
+                                "es".to_string(),
+                            );
+                        }
+                    >
                         <span class="material-symbols-outlined text-2xl group-active:animate-pulse">"bolt"</span>
-                        <span class="text-[11px] font-black uppercase tracking-widest">"Generate"</span>
+                        <span class="text-[11px] font-black uppercase tracking-widest">
+                            {move || if ctx.processing.get() { "Procesando..." } else { "Generate" }}
+                        </span>
                     </button>
-                    // TODO: compute actual inference latency from last response
                     <p class="text-[8px] text-center mt-3 text-slate-500 font-bold uppercase tracking-tight">
-                        "System Latency: 42ms"
+                        {move || {
+                            let t = ctx.text.get();
+                            if t.is_empty() { "Carga un documento para empezar".to_string() }
+                            else { format!("Modelo: Qwen 3.5 · {} palabras", t.split_whitespace().count()) }
+                        }}
                     </p>
                 </div>
             </section>
 
             // ── Column 3: Result Area ──────────────────────────────────────────
-            // Displays the AI-generated output. The 4px orange left border visually
-            // signals "processed / refined output" — the "right side" of the
-            // Source→Result layout described in DESIGN.md §5.
-            //
-            // TODO (Module 13 — VER-001): Each sentence in the result should be
-            // color-coded based on its traceability classification:
-            //   Green  = substantiated by source text
-            //   Amber  = inferred by the AI
-            //   Red    = unsupported / uncertain
-            // This data comes from a secondary "verifiability pass" prompt run
-            // after the main generation.
-            //
-            // TODO (Module 14 — PUB-004): After generation, automatically run a
-            // "preflight" check: undefined acronyms, ambiguous dates, inconsistent
-            // names, figures without units, wrong tone for the selected channel.
-            // Display results as inline annotations.
+            // Muestra el output del LLM token a token (SSE streaming).
+            // Borde naranja 4px = "output procesado / refinado".
             <section class="flex-1 flex flex-col border-l-[4px] border-[#C45911] bg-surface">
-                // Result header
+                // Cabecera del resultado
                 <div class="h-12 border-b border-slate-100 flex items-center justify-between px-6 bg-surf-highest/30">
                     <div class="flex items-center gap-4">
                         <span class="text-[10px] font-bold uppercase tracking-tighter text-[#C45911]">
-                            "Output: Executive Summary"
+                            {move || {
+                                let lbl = ctx.output_label.get();
+                                if lbl.is_empty() { "Output".to_string() }
+                                else { format!("Output: {lbl}") }
+                            }}
                         </span>
+                        // Cursor parpadeante mientras streameamos
+                        {move || ctx.processing.get().then(|| view! {
+                            <span class="w-2 h-4 bg-[#C45911] animate-pulse inline-block"></span>
+                        })}
                     </div>
                     <div class="flex gap-4">
-                        // TODO (EXO-001): copy formatted text to clipboard
-                        <button class="flex items-center gap-1 text-[10px] font-bold uppercase text-outline hover:text-primary transition-colors">
+                        // EXO-001: copiar al portapapeles
+                        <button
+                            class="flex items-center gap-1 text-[10px] font-bold uppercase text-outline hover:text-primary transition-colors disabled:opacity-30"
+                            disabled=move || !has_output()
+                            on:click=move |_| copy_to_clipboard(ctx.output.get_untracked())
+                        >
                             <span class="material-symbols-outlined text-sm">"content_copy"</span>
                             " Copy"
                         </button>
-                        // TODO (EXO-002..EXO-005): export modal — DOCX, PDF, HTML, Markdown
-                        <button class="flex items-center gap-1 text-[10px] font-bold uppercase text-outline hover:text-primary transition-colors">
+                        // EXO-002..EXO-005: modal de exportación
+                        <button
+                            class="flex items-center gap-1 text-[10px] font-bold uppercase text-outline hover:text-primary transition-colors disabled:opacity-30"
+                            disabled=move || !has_output()
+                            on:click=move |_| show_export.set(true)
+                        >
                             <span class="material-symbols-outlined text-sm">"ios_share"</span>
                             " Export"
                         </button>
                     </div>
                 </div>
 
-                // Generated text display
+                // Área de texto generado
                 <div class="flex-1 p-12 overflow-y-auto">
-                    {move || if show_result.get() {
+                    {move || if has_output() {
                         view! {
                             <div class="max-w-2xl">
-                                // "Verified Result" badge — will be replaced by the
-                                // verifiability confidence score (VER-004) once Module 13 is live.
                                 <div class="mb-8 inline-block px-3 py-1 bg-[#ffdbcb] text-[#783100] text-[9px] font-black uppercase tracking-widest rounded-sm">
-                                    "Verified Result"
+                                    {move || ctx.output_label.get()}
                                 </div>
-                                <div class="font-serif italic text-2xl text-on-surf/80 leading-relaxed space-y-6">
-                                    <p>
-                                        "The transition of the OLIV4600 system toward sovereign intelligence represents
-                                        a critical infrastructure milestone for 2026. This technical pivot ensures that
-                                        sensitive defense data remains isolated from public cloud vectors while
-                                        maintaining computational superiority."
-                                    </p>
-                                    <p>"Key pillars identified include:"</p>
-                                    <ul class="list-none space-y-4 not-italic font-sans text-sm uppercase tracking-tight font-bold text-primary">
-                                        <BulletItem text="Strategic autonomy in algorithmic execution."/>
-                                        <BulletItem text="Complete physical data sovereignty within institutional perimeters."/>
-                                        <BulletItem text="Human-in-the-loop validation for all AI-generated strategic narratives."/>
-                                    </ul>
-                                    <p>
-                                        "By prioritizing traceability and local processing, the institution mitigates
-                                        the risks associated with third-party dependencies and enhances the reliability
-                                        of its defensive innovation framework."
-                                    </p>
+                                // Texto generado — whitespace-pre-wrap preserva saltos de línea del LLM
+                                <div class="font-serif text-lg text-on-surf/90 leading-relaxed whitespace-pre-wrap">
+                                    {move || ctx.output.get()}
                                 </div>
                             </div>
                         }.into_any()
                     } else {
                         view! {
-                            // Empty state — shown before first generation
+                            // Empty state — antes de la primera generación
                             <div class="flex flex-col items-center justify-center h-full text-center opacity-40">
                                 <span class="material-symbols-outlined text-[48px] text-primary mb-4">"bolt"</span>
                                 <p class="font-serif italic text-xl text-primary">
-                                    "Configure parameters and click Generate"
+                                    "Configura los parámetros y pulsa Generate"
                                 </p>
                             </div>
                         }.into_any()
                     }}
                 </div>
 
-                // Result footer — provenance metadata + actions
-                // TODO (TRA-001): populate timestamp, prompt version, and SHA-256 hash
-                // of the output from the server response. Store in SQLite for audit trail.
-                // TODO (VER-005): "Edit Result" should put the output into an editable
-                // contenteditable area and track human edits vs AI-generated text separately.
-                <div class="p-6 bg-surf-low/50 border-t border-slate-100">
-                    <div class="flex flex-wrap items-center gap-x-6 gap-y-2 opacity-60">
-                        <div class="flex items-center gap-2">
-                            <span class="material-symbols-outlined text-xs">"verified"</span>
+                // Pie del resultado — metadatos de procedencia (TRA-001)
+                {move || has_output().then(|| view! {
+                    <div class="p-6 bg-surf-low/50 border-t border-slate-100">
+                        <div class="flex flex-wrap items-center gap-x-6 gap-y-2 opacity-60">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-xs">"verified"</span>
+                                <span class="text-[10px] font-bold uppercase tracking-tight">
+                                    {move || format!("Generated: {}", ctx.output_label.get())}
+                                </span>
+                            </div>
+                            <span class="w-1 h-1 bg-outline rounded-full"></span>
                             <span class="text-[10px] font-bold uppercase tracking-tight">
-                                "Generated with [Executive Summary]"
+                                {move || format!("{} palabras", ctx.output.get().split_whitespace().count())}
                             </span>
+                            <span class="w-1 h-1 bg-outline rounded-full"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-tight">"Qwen 3.5 · Local"</span>
                         </div>
-                        <span class="w-1 h-1 bg-outline rounded-full"></span>
-                        <span class="text-[10px] font-bold uppercase tracking-tight">"Apr 08, 2026"</span>
-                        <span class="w-1 h-1 bg-outline rounded-full"></span>
-                        <span class="text-[10px] font-bold uppercase tracking-tight">"Prompt v1.2"</span>
-                        <span class="w-1 h-1 bg-outline rounded-full"></span>
-                        // TODO: real SHA-256 of output text (TRA-001)
-                        <span class="text-[10px] font-bold uppercase tracking-tight">"SHA-256: 8f92...a3e1"</span>
+                        <div class="mt-6 flex gap-3">
+                            <button
+                                class="border border-outline-var text-on-surf text-[10px] font-black uppercase px-6 py-2.5 hover:bg-surf-high transition-colors flex items-center gap-2"
+                                on:click=move |_| {
+                                    run_transform(
+                                        ctx,
+                                        selected_action.get_untracked(),
+                                        length_words.get_untracked(),
+                                        tone.get_untracked(),
+                                        audience.get_untracked(),
+                                        "es".to_string(),
+                                    );
+                                }
+                            >
+                                <span class="material-symbols-outlined text-sm">"refresh"</span>
+                                " Regenerate"
+                            </button>
+                        </div>
                     </div>
-                    <div class="mt-6 flex gap-3">
-                        <button class="bg-surf-highest text-on-surf text-[10px] font-black uppercase px-6 py-2.5 hover:bg-outline-var transition-colors flex items-center gap-2">
-                            <span class="material-symbols-outlined text-sm">"edit"</span>
-                            " Edit Result"
-                        </button>
-                        // TODO: "Regenerate" should re-POST /api/transform with same parameters
-                        // but a slightly varied temperature (adds entropy for diverse outputs).
-                        <button class="border border-outline-var text-on-surf text-[10px] font-black uppercase px-6 py-2.5 hover:bg-surf-high transition-colors flex items-center gap-2">
-                            <span class="material-symbols-outlined text-sm">"refresh"</span>
-                            " Regenerate"
-                        </button>
-                    </div>
-                </div>
+                })}
             </section>
 
+            // Modal de exportación (EXO-001..EXO-006)
+            <ExportModal show=show_export ctx=ctx toast=save_toast/>
+
+            // Toast de confirmación de guardado
+            {move || save_toast.get().map(|msg| view! {
+                <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] pointer-events-none
+                            bg-[#002542] text-white text-[12px] font-semibold px-5 py-3
+                            rounded-full shadow-2xl border border-[#2E75B6] flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[#C45911] text-[16px]">"check_circle"</span>
+                    {msg}
+                </div>
+            })}
+
             // Floating status ribbon — anchored bottom-right
-            // TODO: drive from live backend state (processing queue, active node ID)
             <div class="fixed bottom-6 right-6 z-50 pointer-events-none">
                 <div class="bg-[#002542] text-[#66a6ea] px-4 py-2 border-l-4 border-[#C45911] flex items-center gap-4 shadow-2xl">
                     <div class="flex gap-1">
@@ -1454,6 +1858,118 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                 </div>
             </div>
         </div>
+    }
+}
+
+// ─── Modal de exportación (EXO-001..EXO-006) ─────────────────────────────────
+
+#[component]
+fn ExportModal(
+    show:  RwSignal<bool>,
+    ctx:   DocumentCtx,
+    toast: RwSignal<Option<String>>,
+) -> impl IntoView {
+    view! {
+        {move || show.get().then(|| {
+            let label  = ctx.output_label.get_untracked();
+            let output = ctx.output.get_untracked();
+            let fname  = ctx.filename.get_untracked()
+                .trim_end_matches(".pdf")
+                .trim_end_matches(".docx")
+                .trim_end_matches(".txt")
+                .to_string();
+            let base = if fname.is_empty() { "output".to_string() } else { fname };
+
+            view! {
+                <div
+                    class="fixed inset-0 z-[200] flex items-end justify-end pb-28 pr-8"
+                    on:click=move |_| show.set(false)
+                >
+                    <div
+                        class="bg-white rounded-xl shadow-2xl border border-slate-200 w-72 overflow-hidden"
+                        on:click=|ev| ev.stop_propagation()
+                    >
+                        <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
+                            <span class="text-[10px] font-black uppercase tracking-widest text-primary">
+                                "Exportar resultado"
+                            </span>
+                            <button class="text-slate-400 hover:text-primary"
+                                on:click=move |_| show.set(false)>
+                                <span class="material-symbols-outlined text-sm">"close"</span>
+                            </button>
+                        </div>
+                        <div class="p-3 space-y-1">
+                            // EXO-001: copiar al portapapeles
+                            {let (o, s) = (output.clone(), show);
+                            view! {
+                                <ExportRow icon="content_copy" label="Copiar al portapapeles"
+                                    on_click=move || { copy_to_clipboard(o.clone()); s.set(false); }
+                                />
+                            }}
+                            // EXO-005: Markdown (blob download — funciona para texto)
+                            {let (o, s, b, l) = (output.clone(), show, base.clone(), label.clone());
+                            view! {
+                                <ExportRow icon="code" label="Markdown (.md)"
+                                    on_click=move || {
+                                        download_text(o.clone(), &format!("{b} - {l}.md"), "text/markdown");
+                                        s.set(false);
+                                    }
+                                />
+                            }}
+                            // EXO-003: Texto plano (blob download)
+                            {let (o, s, b, l) = (output.clone(), show, base.clone(), label.clone());
+                            view! {
+                                <ExportRow icon="text_snippet" label="Texto plano (.txt)"
+                                    on_click=move || {
+                                        download_text(o.clone(), &format!("{b} - {l}.txt"), "text/plain");
+                                        s.set(false);
+                                    }
+                                />
+                            }}
+                            // EXO-002: DOCX — guardado en workspace + Finder
+                            {let (o, s, b, l, t) = (output.clone(), show, base.clone(), label.clone(), toast);
+                            view! {
+                                <ExportRow icon="description" label="Word Document (.docx)"
+                                    on_click=move || {
+                                        let (text, lbl, fname) = (o.clone(), l.clone(), format!("{b} - {l}.docx"));
+                                        s.set(false);
+                                        spawn_local(async move {
+                                            fetch_render(text, lbl, "docx".to_string(), fname, t).await;
+                                        });
+                                    }
+                                />
+                            }}
+                            // EXO-006: PDF — guardado en workspace + Finder
+                            {let (o, s, b, l, t) = (output.clone(), show, base.clone(), label.clone(), toast);
+                            view! {
+                                <ExportRow icon="picture_as_pdf" label="PDF Document (.pdf)"
+                                    on_click=move || {
+                                        let (text, lbl, fname) = (o.clone(), l.clone(), format!("{b} - {l}.pdf"));
+                                        s.set(false);
+                                        spawn_local(async move {
+                                            fetch_render(text, lbl, "pdf".to_string(), fname, t).await;
+                                        });
+                                    }
+                                />
+                            }}
+                        </div>
+                    </div>
+                </div>
+            }
+        })}
+    }
+}
+
+#[component]
+fn ExportRow(icon: &'static str, label: &'static str, on_click: impl Fn() + 'static) -> impl IntoView {
+    view! {
+        <button
+            class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-surf-low transition-colors text-left group"
+            on:click=move |_| on_click()
+        >
+            <span class="material-symbols-outlined text-[18px] text-outline group-hover:text-primary">{icon}</span>
+            <span class="text-[11px] font-bold text-on-surf group-hover:text-primary">{label}</span>
+        </button>
     }
 }
 
@@ -1497,363 +2013,638 @@ fn BulletItem(text: &'static str) -> impl IntoView {
 // and returns a structured AnalysisReport JSON. Store in SQLite for the audit log.
 // All values shown here are currently static mockups.
 
+// ─── Helper: SHA-256 de un string vía Web Crypto API ─────────────────────────
+// Devuelve el hash como string hexadecimal en minúsculas (64 caracteres).
+// Se usa como clave de caché en /api/analysis.
+
+async fn sha256_hex(text: &str) -> Option<String> {
+    use js_sys::{ArrayBuffer, Uint8Array};
+    let window = web_sys::window()?;
+    let crypto = window.crypto().ok()?;
+    let subtle = crypto.subtle();
+    // Convertir el string a Vec<u8> UTF-8
+    let mut bytes: Vec<u8> = text.as_bytes().to_vec();
+    let promise = subtle.digest_with_str_and_u8_array("SHA-256", &mut bytes).ok()?;
+    let result = JsFuture::from(promise).await.ok()?;
+    let ab: ArrayBuffer = result.unchecked_into();
+    let hash_bytes = Uint8Array::new(&ab).to_vec();
+    Some(hash_bytes.iter().map(|b| format!("{:02x}", b)).collect())
+}
+
+// ─── AnalysisResult: estado parseado del análisis ─────────────────────────────
+
+#[derive(Clone, Default)]
+struct AnalysisResult {
+    // FOR-001: legibilidad
+    readability_raw:  String,   // texto libre del LLM
+    // TON-005 / TON-006: sentimiento
+    sentiment_raw:    String,
+    // FOR-002 / INV-*: anomalías (texto libre del LLM)
+    anomalies_raw:    String,
+    // EXT-001: entidades NER (texto libre, parseamos líneas)
+    ner_raw:          String,
+    // EXT-003 / EXT-004 / EXT-005: metadatos
+    keywords_raw:     String,
+    // EXT-006: timeline
+    timeline_raw:     String,
+    // EXT-007: impacto
+    impact_raw:       String,
+}
+
+// Acumula la respuesta SSE de una acción de análisis y devuelve el texto completo.
+// Usa Rc<RefCell<String>> para acumular sin necesitar RwSignal fuera del componente.
+async fn collect_action(text: String, action: &'static str) -> String {
+    use std::rc::Rc;
+    use std::cell::RefCell;
+    let buf = Rc::new(RefCell::new(String::new()));
+    let body = serde_json::json!({
+        "text":         text,
+        "action":       action,
+        "doc_name":     "",
+        "length_words": 300u32,
+        "tone":         "4",
+        "audience":     "técnico",
+        "language":     "es",
+    }).to_string();
+    let headers = web_sys::Headers::new().unwrap();
+    headers.set("Content-Type", "application/json").unwrap();
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+    opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+    let req = web_sys::Request::new_with_str_and_init("/api/transform", &opts).unwrap();
+    let window = web_sys::window().unwrap();
+    let resp: web_sys::Response = match JsFuture::from(window.fetch_with_request(&req)).await {
+        Ok(r)  => r.unchecked_into(),
+        Err(_) => return String::new(),
+    };
+    let buf2 = buf.clone();
+    read_sse_stream(
+        resp,
+        move |t| buf2.borrow_mut().push_str(&t),
+        || {},
+    ).await;
+    let result = buf.borrow().clone();
+    result
+}
+
+// ─── Función libre: ejecutar análisis con caché ───────────────────────────────
+// Se llama desde dos closures distintas (run_analysis / reanalyze) sin problema
+// de ownership porque todos los parámetros son Copy (RwSignal) o se pasan owned.
+
+#[allow(clippy::too_many_arguments)]
+async fn do_analysis(
+    text:         String,
+    hash:         String,
+    force:        bool,
+    analyzing:    RwSignal<bool>,
+    result:       RwSignal<Option<AnalysisResult>>,
+    from_cache:   RwSignal<bool>,
+    cached_at:    RwSignal<String>,
+    current_step: RwSignal<&'static str>,
+    ctx:          DocumentCtx,
+) {
+    analyzing.set(true);
+    result.set(None);
+    from_cache.set(false);
+    cached_at.set(String::new());
+
+    // ── 1. Consultar caché en oliv_analysis_cache (salvo que force=true) ────────
+    if !force && !hash.is_empty() {
+        current_step.set("Consultando caché…");
+        let rows = plugin_query(
+            "SELECT readability_raw, sentiment_raw, anomalies_raw, ner_raw, \
+             keywords_raw, timeline_raw, impact_raw, created_at \
+             FROM oliv_analysis_cache WHERE doc_hash = ?1",
+            vec![serde_json::json!(hash)],
+        ).await;
+        if let Some(v) = rows.into_iter().next() {
+            let r = AnalysisResult {
+                readability_raw: v["readability_raw"].as_str().unwrap_or("").to_string(),
+                sentiment_raw:   v["sentiment_raw"].as_str().unwrap_or("").to_string(),
+                anomalies_raw:   v["anomalies_raw"].as_str().unwrap_or("").to_string(),
+                ner_raw:         v["ner_raw"].as_str().unwrap_or("").to_string(),
+                keywords_raw:    v["keywords_raw"].as_str().unwrap_or("").to_string(),
+                timeline_raw:    v["timeline_raw"].as_str().unwrap_or("").to_string(),
+                impact_raw:      v["impact_raw"].as_str().unwrap_or("").to_string(),
+            };
+            let ts = v["created_at"].as_str().unwrap_or("").to_string();
+            current_step.set("");
+            from_cache.set(true);
+            cached_at.set(ts);
+            result.set(Some(r));
+            analyzing.set(false);
+            return; // ← Hit: salimos sin llamar al LLM
+        }
+        // Miss → seguimos al análisis LLM
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // TODO — ARQUITECTURA HÍBRIDA NLP/BERT (Fase futura)
+    //
+    // El pipeline actual delega todos los módulos al LLM local (Qwen 3.5).
+    // A medida que el producto madure, cada módulo debería usar la herramienta
+    // óptima para su tarea — no siempre un LLM completo:
+    //
+    // ── CÁLCULO PURO EN RUST (sin modelo) ────────────────────────────────────
+    //
+    //   FOR-001 · Legibilidad
+    //     Implementar directamente en `server/src/tools/` el índice
+    //     Flesch-Szigriszt (fórmula pública para español) sobre el texto fuente:
+    //       score = 206.835 - 62.3*(sílabas/palabras) - (palabras/frases)
+    //     También: longitud media de frase, densidad léxica (tipos/tokens).
+    //     Ventaja: resultado instantáneo (<1ms), determinista, sin LLM.
+    //     Podría mostrarse en tiempo real mientras el usuario edita en el Editor.
+    //     Crate sugerido: ninguno — implementación manual de ~50 líneas.
+    //
+    // ── MODELOS BERT/TRANSFORMER PEQUEÑOS vía `candle` ───────────────────────
+    //
+    //   `candle` (HuggingFace) es un runtime de inferencia en Rust puro que
+    //   carga modelos SafeTensors/GGUF sin Python, sin ONNX Runtime, compatible
+    //   con el requisito air-gap del SRS. Añadir al Cargo.toml del servidor:
+    //     candle-core = "0.9"
+    //     candle-transformers = "0.9"
+    //
+    //   EXT-001 · NER (Extracción de Entidades)
+    //     Modelo recomendado: PlanTL-GOB-ES/roberta-base-bsc-ner (español)
+    //     o bert-base-multilingual-cased fine-tuned para NER.
+    //     Tamaño: ~250–500MB. Latencia en CPU: <100ms por documento.
+    //     Ventaja sobre LLM: precisión superior en clasificación de entidades
+    //     (PERSON, ORG, DATE, LOC, AMOUNT), salida estructurada JSON directa.
+    //     El LLM actual da texto libre que hay que parsear.
+    //
+    //   TON-005 · Sentimiento y tono emocional
+    //     Modelo recomendado: pysentimiento/robertuito-sentiment-analysis
+    //     (fine-tuned para español, 3 clases: POS/NEG/NEU).
+    //     Para la escala Hostile→Neutral→Advocacy se puede entrenar un
+    //     clasificador de 5 clases sobre corpus institucional propio.
+    //     Latencia en CPU: <50ms.
+    //
+    //   FOR-002 · Detección de lenguaje evasivo
+    //     Un clasificador de secuencias fine-tuned sobre ejemplos de lenguaje
+    //     pasivo/evasivo institucional. Alternativa más ligera: reglas NLP
+    //     con análisis de voz pasiva vía PoS tagging (crate `rust-stemmers`
+    //     + diccionario de patrones).
+    //
+    // ── LLM LOCAL (mantener para tareas de razonamiento) ─────────────────────
+    //
+    //   INV-001..005 · Anomalías y preguntas inversas
+    //     Requiere comprensión contextual profunda → LLM.
+    //     No hay modelo pequeño que detecte "compromiso sin criterio de
+    //     cumplimiento" o "cifra sin fuente" con la misma fiabilidad.
+    //
+    //   EXT-007 · Análisis de impacto
+    //     Requiere razonamiento sobre consecuencias → LLM.
+    //
+    //   EXT-006 · Línea temporal
+    //     Podría migrarse a NER (extracción de DATE) + ordenación,
+    //     pero la narrativización ("este evento provocó...") necesita LLM.
+    //
+    //   EXT-003 · Palabras clave y metadatos
+    //     Candidato para TF-IDF clásico (sin modelo) o KeyBERT.
+    //     KeyBERT usa embeddings de sentence-transformers para extraer
+    //     keywords semánticamente relevantes. Crate: `fastembed` en Rust.
+    //
+    // ── PLAN DE MIGRACIÓN SUGERIDO ────────────────────────────────────────────
+    //
+    //   Fase 1: Flesch-Szigriszt en Rust puro (FOR-001) — trivial, alto impacto
+    //   Fase 2: NER con candle+roberta-bsc (EXT-001) — mayor ganancia vs LLM
+    //   Fase 3: Sentimiento con robertuito (TON-005) — rápido de integrar
+    //   Fase 4: Keywords con fastembed TF-IDF (EXT-003) — eliminar 1 LLM call
+    //   Fase 5: Lenguaje evasivo con PoS rules (FOR-002) — determinista
+    //   Resto:  INV-*, EXT-007 permanecen en LLM (razonamiento complejo)
+    //
+    //   Al final del plan: de 7 llamadas LLM → 2-3 llamadas LLM + 4-5 módulos
+    //   instantáneos. Tiempo de análisis estimado: de ~3min → ~20s.
+    //
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // ── 2. Análisis LLM completo (7 módulos secuenciales) ────────────────────
+    let mut r = AnalysisResult::default();
+
+    current_step.set("Legibilidad (FOR-001)");
+    // TODO Fase 1: reemplazar por cálculo Flesch-Szigriszt en Rust puro (server/src/tools/readability.rs)
+    r.readability_raw = collect_action(text.clone(), "readability_analysis").await;
+
+    current_step.set("Sentimiento (TON-005)");
+    // TODO Fase 3: reemplazar por pysentimiento/robertuito vía candle
+    r.sentiment_raw = collect_action(text.clone(), "sentiment_analysis").await;
+
+    current_step.set("Anomalías / Preguntas Inversas (INV-001..005)");
+    // Mantener en LLM — requiere razonamiento contextual profundo
+    r.anomalies_raw = collect_action(text.clone(), "inverse_questions").await;
+
+    current_step.set("Entidades NER (EXT-001)");
+    // TODO Fase 2: reemplazar por PlanTL-GOB-ES/roberta-base-bsc-ner vía candle
+    r.ner_raw = collect_action(text.clone(), "ner_extraction").await;
+
+    current_step.set("Palabras clave y metadatos (EXT-003)");
+    // TODO Fase 4: reemplazar por TF-IDF o fastembed KeyBERT en Rust
+    r.keywords_raw = collect_action(text.clone(), "keywords_extraction").await;
+
+    current_step.set("Línea temporal (EXT-006)");
+    // TODO Fase 2 (parcial): extracción DATE vía NER, narrativización conserva LLM
+    r.timeline_raw = collect_action(text.clone(), "event_timeline").await;
+
+    current_step.set("Análisis de impacto (EXT-007)");
+    // Mantener en LLM — razonamiento sobre consecuencias
+    r.impact_raw = collect_action(text.clone(), "impact_analysis").await;
+
+    // ── 3. Guardar en oliv_analysis_cache y actualizar oliv_projects ────────────
+    if !hash.is_empty() {
+        current_step.set("Guardando en base de datos…");
+        // Guardar análisis
+        plugin_query(
+            "INSERT OR REPLACE INTO oliv_analysis_cache \
+             (doc_hash, doc_name, word_count, readability_raw, sentiment_raw, \
+              anomalies_raw, ner_raw, keywords_raw, timeline_raw, impact_raw) \
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+            vec![
+                serde_json::json!(hash),
+                serde_json::json!(ctx.filename.get_untracked()),
+                serde_json::json!(ctx.word_count.get_untracked()),
+                serde_json::json!(r.readability_raw),
+                serde_json::json!(r.sentiment_raw),
+                serde_json::json!(r.anomalies_raw),
+                serde_json::json!(r.ner_raw),
+                serde_json::json!(r.keywords_raw),
+                serde_json::json!(r.timeline_raw),
+                serde_json::json!(r.impact_raw),
+            ],
+        ).await;
+        // Marcar proyecto como analizado
+        plugin_query(
+            "UPDATE oliv_projects SET has_analysis = 1, \
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') \
+             WHERE doc_hash = ?1",
+            vec![serde_json::json!(hash)],
+        ).await;
+    }
+
+    current_step.set("");
+    result.set(Some(r));
+    analyzing.set(false);
+}
+
 #[component]
 fn AnalysisView() -> impl IntoView {
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+
+    // Estado reactivo del informe de análisis
+    let result:       RwSignal<Option<AnalysisResult>> = RwSignal::new(None);
+    let analyzing:    RwSignal<bool>                   = RwSignal::new(false);
+    let current_step: RwSignal<&'static str>           = RwSignal::new("");
+    let from_cache:   RwSignal<bool>                   = RwSignal::new(false);
+    let cached_at:    RwSignal<String>                 = RwSignal::new(String::new());
+    // Toast de exportación
+    let toast:        RwSignal<Option<String>>          = RwSignal::new(None);
+
+    // ── Botón "Ejecutar Análisis" (con caché) ────────────────────────────────
+    // Usa ctx.doc_hash si ya lo calculó el servidor en /api/extract;
+    // si está vacío (texto pegado manualmente) lo calcula aquí en WASM.
+    let run_analysis = move |_| {
+        let text = ctx.text.get_untracked();
+        if text.is_empty() { return; }
+        let hash_cached = ctx.doc_hash.get_untracked();
+        spawn_local(async move {
+            let hash = if hash_cached.is_empty() {
+                sha256_hex(&text).await.unwrap_or_default()
+            } else { hash_cached };
+            do_analysis(text, hash, false, analyzing, result, from_cache, cached_at, current_step, ctx).await;
+        });
+    };
+
+    // ── Botón "Re-analizar" (fuerza LLM, ignora caché) ───────────────────────
+    let reanalyze = move |_| {
+        let text = ctx.text.get_untracked();
+        if text.is_empty() { return; }
+        let hash_cached = ctx.doc_hash.get_untracked();
+        spawn_local(async move {
+            let hash = if hash_cached.is_empty() {
+                sha256_hex(&text).await.unwrap_or_default()
+            } else { hash_cached };
+            do_analysis(text, hash, true, analyzing, result, from_cache, cached_at, current_step, ctx).await;
+        });
+    };
+
+    // ── Exportar informe completo como texto ──────────────────────────────────
+    let export_report = move |_| {
+        if let Some(r) = result.get_untracked() {
+            let fname = ctx.filename.get_untracked();
+            let label = format!("Análisis — {}", if fname.is_empty() { "documento" } else { &fname });
+            let text = format!(
+                "# {}\n\n## Legibilidad\n{}\n\n## Sentimiento y Tono\n{}\n\n## Anomalías\n{}\n\n## Entidades (NER)\n{}\n\n## Palabras Clave\n{}\n\n## Línea Temporal\n{}\n\n## Análisis de Impacto\n{}",
+                label,
+                r.readability_raw, r.sentiment_raw, r.anomalies_raw,
+                r.ner_raw, r.keywords_raw, r.timeline_raw, r.impact_raw
+            );
+            spawn_local(async move {
+                fetch_render(text, label, "txt".to_string(), "analysis.txt".to_string(), toast).await;
+            });
+        }
+    };
+
+    let has_doc   = move || !ctx.text.get().is_empty();
+    let has_result = move || result.get().is_some();
+
     view! {
         <div class="p-10 max-w-7xl mx-auto">
 
+            // ── Toast de exportación ───────────────────────────────────────────
+            {move || toast.get().map(|msg| view! {
+                <div class="fixed bottom-6 right-6 z-50 bg-primary text-[#66a6ea] px-5 py-3 rounded-sm shadow-2xl flex items-center gap-3">
+                    <span class="material-symbols-outlined text-[18px]">"check_circle"</span>
+                    <span class="text-[11px] font-bold uppercase tracking-widest">{msg}</span>
+                </div>
+            })}
+
             // ── Page Header ────────────────────────────────────────────────────
-            <header class="mb-10">
-                <div class="flex justify-between items-end">
+            <header class="mb-8">
+                <div class="flex justify-between items-end flex-wrap gap-4">
                     <div>
                         <h2 class="text-4xl font-sans font-black tracking-tighter text-primary uppercase">
-                            "Document Analysis"
+                            "Análisis Documental"
                         </h2>
-                        // TODO: display loaded document name + analysis timestamp
                         <p class="font-serif italic text-xl text-outline mt-1">
-                            "Sovereign Intelligence Report: v4.6.0.28"
+                            {move || {
+                                let f = ctx.filename.get();
+                                if f.is_empty() {
+                                    "Sin documento cargado — carga uno desde el Editor".to_string()
+                                } else {
+                                    format!("Documento: {f}")
+                                }
+                            }}
                         </p>
                     </div>
-                    <div class="flex items-center gap-3 px-4 py-2 bg-primary text-[#66a6ea] rounded-sm">
-                        <span class="material-symbols-outlined text-[20px]">"lock"</span>
-                        <span class="text-[11px] font-bold uppercase tracking-[0.2em]">
-                            "100% Offline Environment"
-                        </span>
+                    <div class="flex items-center gap-3">
+                        // Badge offline
+                        <div class="flex items-center gap-2 px-3 py-2 bg-primary text-[#66a6ea] rounded-sm">
+                            <span class="material-symbols-outlined text-[18px]">"lock"</span>
+                            <span class="text-[10px] font-bold uppercase tracking-[0.2em]">"100% Offline"</span>
+                        </div>
+                        // Badge "Desde caché" + botón Re-analizar
+                        {move || (has_result() && from_cache.get()).then(|| view! {
+                            <div class="flex items-center gap-2">
+                                <div class="flex items-center gap-2 px-3 py-2 bg-[#003b65] text-[#66a6ea] rounded-sm">
+                                    <span class="material-symbols-outlined text-[16px]">"database"</span>
+                                    <div>
+                                        <span class="block text-[10px] font-black uppercase tracking-widest">"Desde BD"</span>
+                                        <span class="block text-[9px] text-[#9ecaff]">
+                                            {move || {
+                                                let ts = cached_at.get();
+                                                if ts.len() >= 10 { ts[..10].to_string() } else { ts }
+                                            }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    on:click=reanalyze
+                                    class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-outline border border-outline/40 rounded-sm hover:border-primary hover:text-primary transition-all"
+                                    title="Forzar nuevo análisis ignorando la caché"
+                                >
+                                    "Re-analizar"
+                                </button>
+                            </div>
+                        })}
+                        // Botón exportar (sólo si hay resultado)
+                        {move || has_result().then(|| view! {
+                            <button
+                                on:click=export_report
+                                class="px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-primary border border-primary rounded-sm hover:bg-primary hover:text-white transition-all"
+                            >
+                                "Exportar Informe"
+                            </button>
+                        })}
+                        // Botón principal
+                        {move || {
+                            let disabled = !has_doc() || analyzing.get();
+                            view! {
+                                <button
+                                    on:click=run_analysis
+                                    disabled=disabled
+                                    class=move || format!(
+                                        "px-6 py-2 text-[11px] font-bold uppercase tracking-widest rounded-sm transition-all {}",
+                                        if disabled {
+                                            "bg-surface-container text-outline cursor-not-allowed"
+                                        } else {
+                                            "bg-[#C45911] text-white hover:opacity-90 active:scale-95 shadow-md"
+                                        }
+                                    )
+                                >
+                                    {move || if analyzing.get() { "Analizando..." } else { "Ejecutar Análisis" }}
+                                </button>
+                            }
+                        }}
                     </div>
                 </div>
             </header>
 
-            // ── Bento Grid ─────────────────────────────────────────────────────
-            <div class="grid grid-cols-12 gap-6">
-
-                // Card: Readability Profile (FOR-001)
-                // Flesch-Szigriszt index circular gauge.
-                // TODO: compute via a Rust implementation of the Flesch-Szigriszt formula
-                // on the source text. Also show: avg sentence length, lexical density.
-                // Target for institutional documents: score 40–60 (university level).
-                <div class="col-span-12 lg:col-span-4 bg-white p-8 shadow-sm rounded-lg">
-                    <div class="flex justify-between items-start mb-8">
-                        <h3 class="font-sans font-bold text-xs uppercase tracking-widest text-primary">
-                            "Readability Profile"
-                        </h3>
-                        <span class="material-symbols-outlined text-primary/30">"menu_book"</span>
+            // ── Barra de progreso del análisis ────────────────────────────────
+            {move || analyzing.get().then(|| view! {
+                <div class="mb-8 p-4 bg-[#001b30] rounded-sm border border-[#003b65]">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full bg-[#66a6ea] animate-pulse shrink-0"></div>
+                        <span class="text-[11px] font-bold uppercase tracking-widest text-[#66a6ea]">
+                            "Motor IA activo — "
+                        </span>
+                        <span class="text-[11px] text-[#9ecaff]">
+                            {move || current_step.get()}
+                        </span>
                     </div>
-                    <div class="flex flex-col items-center py-4">
-                        // SVG circular gauge — stroke-dasharray controls fill level
-                        // TODO: calculate stroke-dashoffset from actual Flesch score (0–100)
-                        // Formula: dashoffset = 502 * (1 - score/100)
-                        <div class="relative w-48 h-48 flex items-center justify-center">
-                            <svg class="w-full h-full -rotate-90">
-                                <circle
-                                    class="text-surf-high"
-                                    cx="96" cy="96" r="80" fill="transparent"
-                                    stroke="currentColor" stroke-width="12"
-                                />
-                                <circle
-                                    class="text-action"
-                                    cx="96" cy="96" r="80" fill="transparent"
-                                    stroke="currentColor" stroke-width="12"
-                                    stroke-dasharray="502"
-                                    stroke-dashoffset="150"
-                                />
-                            </svg>
-                            <div class="absolute inset-0 flex flex-col items-center justify-center">
-                                <span class="text-4xl font-black text-primary">"72.4"</span>
-                                <span class="text-[10px] font-bold uppercase text-outline tracking-tighter">
-                                    "Flesch-Szigriszt"
-                                </span>
-                            </div>
-                        </div>
-                        <div class="mt-8 text-center">
-                            <div class="px-4 py-1.5 bg-[#003b65] text-[#66a6ea] inline-block rounded-sm mb-2">
-                                <span class="text-xs font-bold uppercase tracking-widest">"University Level"</span>
-                            </div>
-                            <p class="font-serif text-sm text-on-surf-var max-w-[200px] leading-relaxed">
-                                "Highly technical syntax with academic structural patterns detected."
-                            </p>
-                        </div>
+                    <div class="mt-3 h-1 bg-[#003b65] rounded-full overflow-hidden">
+                        <div class="h-full bg-[#66a6ea] animate-pulse" style="width:60%"></div>
                     </div>
                 </div>
+            })}
 
-                // Card: Emotional Resonance / Tone Thermometer (TON-005, TON-006)
-                // A horizontal slider indicating the emotional tone of the document.
-                // TODO: derive from sentiment analysis via the LLM.
-                // Prompt: "Classify the overall tone of this text on a scale from
-                // Hostile → Formal/Neutral → Advocacy. Return a 0-100 score."
-                // Also show: top 3 detected emotions with confidence percentages.
-                <div class="col-span-12 lg:col-span-4 bg-white p-8 shadow-sm rounded-lg flex flex-col">
-                    <div class="flex justify-between items-start mb-8">
-                        <h3 class="font-sans font-bold text-xs uppercase tracking-widest text-primary">
-                            "Emotional Resonance"
-                        </h3>
-                        <span class="material-symbols-outlined text-primary/30">"psychology"</span>
-                    </div>
-                    <div class="flex-grow flex flex-col justify-center">
-                        // Thermometer bar — position of the marker at 72% = "Formal/Neutral"
-                        // TODO: bind position to sentiment score from analysis API
-                        <div class="w-full h-4 bg-surf-high rounded-full overflow-hidden relative mb-4">
-                            <div class="absolute inset-y-0 left-0 bg-primary w-[75%] rounded-full opacity-10"></div>
-                            <div class="absolute inset-y-0 left-[72%] w-1 bg-[#C45911] shadow-[0_0_8px_rgba(196,89,17,0.5)] z-10"></div>
-                        </div>
-                        <div class="flex justify-between text-[10px] font-bold uppercase tracking-widest text-outline">
-                            <span>"Hostile"</span>
-                            <span class="text-primary">"Formal / Neutral"</span>
-                            <span>"Advocacy"</span>
-                        </div>
-                    </div>
-                    <div class="mt-8 p-4 bg-surface rounded-sm">
-                        <div class="flex items-center gap-3">
-                            <span class="material-symbols-outlined text-primary text-lg">"verified_user"</span>
-                            <div>
-                                <span class="block text-[11px] font-black uppercase text-primary">
-                                    "Objective Profile"
-                                </span>
-                                <p class="font-serif text-sm italic">
-                                    "94% compliance with institutional tone."
-                                </p>
-                            </div>
-                        </div>
+            // ── Empty state: sin documento ────────────────────────────────────
+            {move || (!has_doc() && !analyzing.get()).then(|| view! {
+                <div class="flex flex-col items-center justify-center py-32 text-center">
+                    <span class="material-symbols-outlined text-6xl text-outline/30 mb-6">"description"</span>
+                    <h3 class="font-sans font-black text-xl text-primary mb-2">"Sin documento cargado"</h3>
+                    <p class="font-serif italic text-outline max-w-md">
+                        "Carga un documento desde la vista Editor para poder ejecutar el análisis forense completo."
+                    </p>
+                </div>
+            })}
+
+            // ── Empty state: doc cargado pero sin analizar ─────────────────────
+            {move || (has_doc() && !has_result() && !analyzing.get()).then(|| view! {
+                <div class="flex flex-col items-center justify-center py-24 text-center">
+                    <span class="material-symbols-outlined text-5xl text-outline/30 mb-6">"analytics"</span>
+                    <h3 class="font-sans font-black text-xl text-primary mb-2">"Listo para analizar"</h3>
+                    <p class="font-serif italic text-outline max-w-md mb-6">
+                        "Pulsa «Ejecutar Análisis» para obtener el informe forense completo: legibilidad, sentimiento, entidades, anomalías, metadatos, timeline e impacto."
+                    </p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-left max-w-2xl">
+                        <AnalysisModuleBadge icon="menu_book"     label="FOR-001" desc="Legibilidad"/>
+                        <AnalysisModuleBadge icon="psychology"    label="TON-005" desc="Sentimiento"/>
+                        <AnalysisModuleBadge icon="report"        label="INV-001" desc="Anomalías"/>
+                        <AnalysisModuleBadge icon="manage_search" label="EXT-001" desc="NER"/>
+                        <AnalysisModuleBadge icon="label"         label="EXT-003" desc="Keywords"/>
+                        <AnalysisModuleBadge icon="timeline"      label="EXT-006" desc="Timeline"/>
+                        <AnalysisModuleBadge icon="lightbulb"     label="EXT-007" desc="Impacto"/>
+                        <AnalysisModuleBadge icon="fact_check"    label="FOR-002" desc="Lenguaje evasivo"/>
                     </div>
                 </div>
+            })}
 
-                // Card: Critical Anomalies (FOR-002, EDI-003, EDI-006, INV-001..INV-005)
-                // High-priority issues detected in the document: evasive language,
-                // data gaps, ambiguous commitments, missing evidence.
-                // Uses the dark tertiary background (#401700) for immediate visual urgency.
-                // TODO: populate from the Inverse Questions engine (Module 9):
-                //   - FOR-002: flag passive-voice liability clauses
-                //   - EDI-006: "reasonable efforts" with no quantified metrics
-                //   - INV-001: mandatory fields missing from press releases
-                //   - VER-003: assertions of impact with no data source
-                <div class="col-span-12 lg:col-span-4 bg-[#401700] p-8 shadow-sm rounded-lg text-white">
-                    <div class="flex justify-between items-start mb-6">
-                        <h3 class="font-sans font-bold text-xs uppercase tracking-widest text-[#ffdbcb]">
-                            "Critical Anomalies"
-                        </h3>
-                        <span class="material-symbols-outlined text-[#fa813a]">"report"</span>
-                    </div>
-                    <ul class="space-y-4">
-                        <AnomalyItem
-                            title="Evasive Language"
-                            desc="Multiple instances of passive voice in liability clauses."
-                        />
-                        <AnomalyItem
-                            title="Data Gap"
-                            desc="Fiscal year 2024 projections missing from summary."
-                        />
-                        <AnomalyItem
-                            title="Ambiguity Alert"
-                            desc="\"Reasonable efforts\" clause lacks quantified metrics."
-                        />
-                    </ul>
-                </div>
+            // ── Resultados del análisis ───────────────────────────────────────
+            {move || result.get().map(|r| {
+                let r2  = r.clone();
+                let r3  = r.clone();
+                let r4  = r.clone();
+                let r5  = r.clone();
+                let r6  = r.clone();
+                let r7  = r.clone();
 
-                // Card: Named Entity Recognition Table (EXT-001)
-                // Extracts persons, organizations, dates, locations, amounts.
-                // TODO: POST /api/analyze → NER step uses the LLM with a structured
-                // extraction prompt, returning JSON: [{ entity, type, confidence }].
-                // Render each row with the appropriate color-coded type badge.
-                // The "Export CSV" button should trigger EXO-001/EXO-005 (copy/markdown).
-                // TODO (EXT-006): below the NER table, add a collapsible "Event Timeline"
-                // section that orders all DATE entities chronologically.
-                <div class="col-span-12 lg:col-span-8 bg-white p-8 shadow-sm rounded-lg">
-                    <div class="flex justify-between items-start mb-8">
-                        <h3 class="font-sans font-bold text-xs uppercase tracking-widest text-primary">
-                            "Named Entity Recognition (NER)"
-                        </h3>
-                        <button class="text-[10px] font-bold uppercase text-primary bg-primary/10 px-3 py-1 rounded-sm hover:bg-primary/20 transition-colors">
-                            "Export CSV"
-                        </button>
-                    </div>
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="border-b border-outline-var/20">
-                                <NerTh>"Type"</NerTh>
-                                <NerTh>"Extracted Entity"</NerTh>
-                                <NerTh>"Confidence"</NerTh>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-outline-var/10">
-                            <NerRow entity_type="PERSON"       badge_class="bg-blue-100 text-blue-800"      entity="Dr. Julian Vane"     pct=98/>
-                            <NerRow entity_type="ORGANIZATION" badge_class="bg-purple-100 text-purple-800"  entity="Aetheris Corp Int."  pct=92/>
-                            <NerRow entity_type="DATE"         badge_class="bg-amber-100 text-amber-800"    entity="October 14, 2026"    pct=100/>
-                            <NerRow entity_type="LOCATION"     badge_class="bg-emerald-100 text-emerald-800" entity="Geneva Free Port"   pct=87/>
-                        </tbody>
-                    </table>
-                </div>
+                view! {
+                    <div class="grid grid-cols-12 gap-6">
 
-                // Card: Structural Metadata (EXT-003, EXT-004, EXT-005)
-                // Keyword extraction, confidentiality suggestion, target audience detection.
-                // TODO (EXT-003): POST /api/analyze → keywords step generates 5-10 thematic
-                // keywords plus a suggested document category. Store in SQLite for library search.
-                // TODO (EXT-004): confidentiality suggestion is LLM-classified:
-                //   Public / Internal / Restricted / Confidential / Top Secret
-                // TODO (EXT-005): audience detection → feeds back into Module 4 (Admin) checks.
-                <div class="col-span-12 lg:col-span-4 space-y-6">
-                    <div class="bg-white p-8 shadow-sm rounded-lg border-l-4 border-primary">
-                        <h3 class="font-sans font-bold text-xs uppercase tracking-widest text-primary mb-6">
-                            "Structural Metadata"
-                        </h3>
-                        <div class="space-y-6">
-                            <div>
-                                <label class="text-[10px] font-black uppercase text-outline block mb-2">
-                                    "Primary Keywords"
-                                </label>
-                                <div class="flex flex-wrap gap-2">
-                                    <KeywordChip label="Sovereignty"/>
-                                    <KeywordChip label="Encryption"/>
-                                    <KeywordChip label="Liability"/>
-                                    <KeywordChip label="Protocol"/>
+                        // ── Card: Legibilidad (FOR-001) ────────────────────────
+                        <div class="col-span-12 lg:col-span-4 bg-white p-8 shadow-sm rounded-lg">
+                            <div class="flex justify-between items-start mb-6">
+                                <div>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-[#C45911]">"FOR-001"</span>
+                                    <h3 class="font-sans font-bold text-sm uppercase tracking-widest text-primary mt-1">
+                                        "Perfil de Legibilidad"
+                                    </h3>
                                 </div>
+                                <span class="material-symbols-outlined text-primary/30">"menu_book"</span>
                             </div>
-                            <div>
-                                <label class="text-[10px] font-black uppercase text-outline block mb-2">
-                                    "Confidentiality Level"
-                                </label>
-                                <div class="flex items-center gap-3">
-                                    <div class="flex-grow h-2 bg-surf-high rounded-full overflow-hidden">
-                                        <div class="w-4/5 h-full bg-[#C45911]"></div>
-                                    </div>
-                                    <span class="text-[11px] font-black text-[#C45911] uppercase">
-                                        "Restricted"
-                                    </span>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="text-[10px] font-black uppercase text-outline block mb-2">
-                                    "Target Audience"
-                                </label>
-                                <p class="font-serif italic text-sm text-primary">
-                                    "Technical Steering Committee & Legal Oversight"
-                                </p>
+                            <div class="font-serif text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
+                                {r.readability_raw.clone()}
                             </div>
                         </div>
+
+                        // ── Card: Sentimiento (TON-005 / TON-006) ─────────────
+                        <div class="col-span-12 lg:col-span-4 bg-white p-8 shadow-sm rounded-lg">
+                            <div class="flex justify-between items-start mb-6">
+                                <div>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-[#C45911]">"TON-005"</span>
+                                    <h3 class="font-sans font-bold text-sm uppercase tracking-widest text-primary mt-1">
+                                        "Tono y Sentimiento"
+                                    </h3>
+                                </div>
+                                <span class="material-symbols-outlined text-primary/30">"psychology"</span>
+                            </div>
+                            <div class="font-serif text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
+                                {r2.sentiment_raw.clone()}
+                            </div>
+                        </div>
+
+                        // ── Card: Anomalías / Preguntas Inversas (INV-001..005) ─
+                        <div class="col-span-12 lg:col-span-4 bg-[#401700] p-8 shadow-sm rounded-lg text-white">
+                            <div class="flex justify-between items-start mb-6">
+                                <div>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-[#fa813a]">"INV-001..005"</span>
+                                    <h3 class="font-sans font-bold text-sm uppercase tracking-widest text-[#ffdbcb] mt-1">
+                                        "Anomalías y Alertas"
+                                    </h3>
+                                </div>
+                                <span class="material-symbols-outlined text-[#fa813a]">"report"</span>
+                            </div>
+                            <div class="font-serif text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
+                                {r3.anomalies_raw.clone()}
+                            </div>
+                        </div>
+
+                        // ── Card: NER — Entidades (EXT-001) ───────────────────
+                        <div class="col-span-12 lg:col-span-7 bg-white p-8 shadow-sm rounded-lg">
+                            <div class="flex justify-between items-start mb-6">
+                                <div>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-[#C45911]">"EXT-001"</span>
+                                    <h3 class="font-sans font-bold text-sm uppercase tracking-widest text-primary mt-1">
+                                        "Entidades Reconocidas (NER)"
+                                    </h3>
+                                </div>
+                                <button
+                                    on:click={
+                                        let ner = r4.ner_raw.clone();
+                                        move |_| copy_to_clipboard(ner.clone())
+                                    }
+                                    class="text-[10px] font-bold uppercase text-primary bg-primary/10 px-3 py-1 rounded-sm hover:bg-primary/20 transition-colors"
+                                >
+                                    "Copiar"
+                                </button>
+                            </div>
+                            <div class="font-serif text-sm text-on-surface leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto">
+                                {r4.ner_raw.clone()}
+                            </div>
+                        </div>
+
+                        // ── Card: Metadatos + Keywords (EXT-003..005) ──────────
+                        <div class="col-span-12 lg:col-span-5 bg-white p-8 shadow-sm rounded-lg border-l-4 border-primary">
+                            <div class="mb-6">
+                                <span class="text-[10px] font-black uppercase tracking-widest text-[#C45911]">"EXT-003..005"</span>
+                                <h3 class="font-sans font-bold text-sm uppercase tracking-widest text-primary mt-1">
+                                    "Palabras Clave y Metadatos"
+                                </h3>
+                            </div>
+                            <div class="font-serif text-sm text-on-surface leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto">
+                                {r5.keywords_raw.clone()}
+                            </div>
+                        </div>
+
+                        // ── Card: Línea Temporal (EXT-006) ────────────────────
+                        <div class="col-span-12 bg-white p-8 shadow-sm rounded-lg">
+                            <div class="flex justify-between items-start mb-6">
+                                <div>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-[#C45911]">"EXT-006"</span>
+                                    <h3 class="font-sans font-bold text-sm uppercase tracking-widest text-primary mt-1">
+                                        "Línea Temporal de Eventos"
+                                    </h3>
+                                </div>
+                                <span class="material-symbols-outlined text-primary/30">"timeline"</span>
+                            </div>
+                            <div class="font-serif text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
+                                {r6.timeline_raw.clone()}
+                            </div>
+                        </div>
+
+                        // ── Card: Análisis de Impacto (EXT-007) ──────────────
+                        <div class="col-span-12 bg-[#001b30] p-8 shadow-sm rounded-lg">
+                            <div class="flex justify-between items-start mb-6">
+                                <div>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-[#fa813a]">"EXT-007"</span>
+                                    <h3 class="font-sans font-bold text-sm uppercase tracking-widest text-[#66a6ea] mt-1">
+                                        "Análisis de Impacto"
+                                    </h3>
+                                </div>
+                                <span class="material-symbols-outlined text-[#66a6ea]/30">"lightbulb"</span>
+                            </div>
+                            <div class="font-serif text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
+                                {r7.impact_raw.clone()}
+                            </div>
+                        </div>
+
                     </div>
-                    // Impact analysis placeholder (EXT-007)
-                    // TODO: "Why does this matter? Who is affected?" — LLM prompt that
-                    // produces a 2-3 sentence impact statement for the executive summary.
-                    <div class="bg-surf-low p-6 rounded-lg">
-                        <h4 class="text-[10px] font-black uppercase text-outline mb-3">"Impact Analysis"</h4>
-                        <p class="font-serif italic text-sm text-primary/60">
-                            "Run analysis to generate impact assessment..."
+
+                    // ── Footer ────────────────────────────────────────────────
+                    <footer class="mt-12 flex justify-between items-center text-outline-var">
+                        <p class="text-[10px] font-bold uppercase tracking-widest">
+                            "© 2026 OLIV4600 SOVEREIGN SYSTEMS"
                         </p>
-                    </div>
-                </div>
-
-                // Card: Event Timeline (EXT-006)
-                // Chronological ordering of all DATE entities extracted by NER.
-                // The active node (current analysis date) is highlighted in action orange.
-                // TODO: sort DATE entities chronologically → render as a horizontal
-                // timeline with absolute positioning. Future dates shown at 40% opacity.
-                <div class="col-span-12 bg-white p-8 shadow-sm rounded-lg">
-                    <div class="flex justify-between items-start mb-10">
-                        <h3 class="font-sans font-bold text-xs uppercase tracking-widest text-primary">
-                            "Document Event Timeline"
-                        </h3>
-                        <span class="material-symbols-outlined text-primary/30">"timeline"</span>
-                    </div>
-                    <div class="relative py-10">
-                        // Horizontal axis line
-                        <div class="absolute top-1/2 left-0 w-full h-px bg-outline-var/30 -translate-y-1/2"></div>
-                        <div class="flex justify-between relative px-10">
-                            <TimelineNode date="2021-Q3" label="Initial Protocol Drafted" active=false/>
-                            <TimelineNode date="2023-M11" label="Aetheris Acquisition" active=false/>
-                            <TimelineNode date="2026-OCT" label="Current Analysis Horizon" active=true/>
-                            <TimelineNode date="2027-PROJ" label="Sunsetting Phase" active=false/>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            // Footer
-            <footer class="mt-12 flex justify-between items-center text-outline-var">
-                <p class="text-[10px] font-bold uppercase tracking-widest">
-                    "© 2026 OLIV4600 SOVEREIGN SYSTEMS"
-                </p>
-                <div class="flex gap-4">
-                    // TODO: wire to real metrics from backend (inference time, node ID)
-                    <span class="text-[10px] font-bold uppercase tracking-widest">"LATENCY: 12ms"</span>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">"NODE: LOCAL-GEN-01"</span>
-                </div>
-            </footer>
+                        <p class="text-[10px] font-bold uppercase tracking-widest">
+                            {format!("Documento: {} palabras — análisis completo",
+                                ctx.word_count.get_untracked())}
+                        </p>
+                    </footer>
+                }.into_any()
+            })}
         </div>
     }
 }
 
-// Analysis sub-components
-
+// ── Sub-componente: badge de módulo en el empty state ─────────────────────────
 #[component]
-fn AnomalyItem(title: &'static str, desc: &'static str) -> impl IntoView {
+fn AnalysisModuleBadge(icon: &'static str, label: &'static str, desc: &'static str) -> impl IntoView {
     view! {
-        <li class="flex gap-4 items-start pb-4 border-b border-white/10 last:border-0 last:pb-0">
-            <div class="w-2 h-2 rounded-full bg-[#fa813a] mt-1.5 shrink-0"></div>
+        <div class="flex items-start gap-3 p-3 bg-white rounded-sm shadow-sm">
+            <span class="material-symbols-outlined text-[#C45911] text-lg shrink-0">{icon}</span>
             <div>
-                <h4 class="text-[11px] font-black uppercase tracking-widest text-[#fa813a]">{title}</h4>
-                <p class="font-serif text-sm text-white/80 leading-snug mt-1">{desc}</p>
-            </div>
-        </li>
-    }
-}
-
-#[component]
-fn NerTh(children: Children) -> impl IntoView {
-    view! {
-        <th class="pb-4 text-[11px] font-black uppercase text-outline tracking-widest">
-            {children()}
-        </th>
-    }
-}
-
-#[component]
-fn NerRow(
-    entity_type:  &'static str,
-    badge_class:  &'static str,
-    entity:       &'static str,
-    pct:          u32,
-) -> impl IntoView {
-    let bar_w = format!("w-[{}%]", pct);
-    view! {
-        <tr>
-            <td class="py-4">
-                <span class=format!("px-2 py-0.5 {} text-[10px] font-bold uppercase rounded-sm", badge_class)>
-                    {entity_type}
-                </span>
-            </td>
-            <td class="py-4 font-serif font-bold text-primary">{entity}</td>
-            <td class="py-4">
-                <div class="w-32 h-1.5 bg-surf-high rounded-full overflow-hidden">
-                    <div class=format!("{bar_w} h-full bg-primary")></div>
-                </div>
-            </td>
-        </tr>
-    }
-}
-
-#[component]
-fn KeywordChip(label: &'static str) -> impl IntoView {
-    view! {
-        <span class="text-[11px] font-bold px-2 py-1 bg-surf-high rounded-sm">{label}</span>
-    }
-}
-
-#[component]
-fn TimelineNode(date: &'static str, label: &'static str, active: bool) -> impl IntoView {
-    let dot_class = if active {
-        "w-6 h-6 rounded-full bg-[#C45911] border-4 border-white z-10 shadow-lg shadow-[#C45911]/20"
-    } else {
-        "w-4 h-4 rounded-full bg-primary border-4 border-white z-10"
-    };
-    let date_class = if active {
-        "block text-[10px] font-black uppercase text-[#C45911]"
-    } else {
-        "block text-[10px] font-black uppercase text-primary"
-    };
-    view! {
-        <div class=if active { "flex flex-col items-center" } else { "flex flex-col items-center opacity-40" }>
-            <div class=dot_class></div>
-            <div class="mt-4 text-center">
-                <span class=date_class>{date}</span>
-                <p class="font-serif text-sm mt-1 max-w-[120px]">{label}</p>
+                <span class="block text-[10px] font-black uppercase tracking-widest text-[#C45911]">{label}</span>
+                <span class="block text-xs text-primary font-medium mt-0.5">{desc}</span>
             </div>
         </div>
     }
@@ -1885,100 +2676,96 @@ fn TimelineNode(date: &'static str, label: &'static str, active: bool) -> impl I
 
 #[component]
 fn ChatView() -> impl IntoView {
-    // TODO: message list should be a Vec<ChatMessage> reactive signal, updated
-    // as SSE tokens arrive. Auto-scroll the chat panel to the bottom on new messages.
-    // TODO: input field should track keypresses; Shift+Enter for newline, Enter to send.
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+
+    // Estado reactivo de la conversación (CHA-004)
+    // Cada tupla: ("user" | "assistant", texto)
+    let messages: RwSignal<Vec<(String, String)>> = RwSignal::new(Vec::new());
+    let (input_text, set_input_text) = signal(String::new());
+
+    // Macro local para no repetir la lógica de envío en cada handler.
+    // Como todos los captures son Copy (RwSignal, ReadSignal, WriteSignal),
+    // podemos crear closures separadas sin necesitar Clone.
+    // Se usa como bloque inline en cada manejador.
 
     view! {
         <div class="h-full flex overflow-hidden">
 
-            // ── Left Panel: Document Viewer ────────────────────────────────────
-            // Displays the source document in read-only mode with highlighted
-            // passages that correspond to AI citations in the chat.
-            // TODO: implement cross-panel citation linking:
-            //   1. Each AI response includes a list of source_offsets (char start/end).
-            //   2. On new AI message: scroll the document panel to the first cited passage
-            //      and apply highlight-ref styling to each cited span.
-            //   3. Clicking a highlighted passage in the document scrolls the chat to
-            //      the message that cited it.
-            <section class="w-1/2 bg-surf-low border-r border-slate-200 p-12 overflow-y-auto relative">
-                <div class="max-w-2xl mx-auto bg-white shadow-sm p-16">
-                    <div class="mb-12 border-b border-slate-100 pb-8">
-                        // TODO: populate from loaded document metadata
-                        <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">
-                            "Report ID: DEF-2026-X4"
-                        </span>
-                        <h2 class="font-serif text-4xl text-primary mt-2">
-                            "Sovereign Defense Innovation 2026"
-                        </h2>
-                        <p class="text-xs text-on-surf-var mt-4 font-semibold italic">
-                            "Classified: Internal Use Only — AI Augmented Audit"
-                        </p>
-                    </div>
-                    // Document body with inline citation highlights
-                    // Orange underlines mark passages referenced in the last AI response
-                    <article class="font-serif text-lg leading-relaxed text-slate-800 space-y-6">
-                        <p>
-                            "The current landscape of defense procurement requires a fundamental shift toward "
-                            <span class="bg-[#fa813a]/20 border-b-2 border-[#C45911] font-bold">
-                                "decentralized manufacturing hubs"
-                            </span>
-                            " and modular intelligence systems. By 2026, the projected expenditure
-                            for autonomous verification is expected to reach 14.2% of the total R&D budget."
-                        </p>
-                        <h3 class="font-sans font-bold text-sm uppercase tracking-tighter text-slate-400 mt-8">
-                            "Strategic Analysis"
-                        </h3>
-                        <p>
-                            "Our primary objective focuses on the integration of Sovereign LLMs into the
-                            tactical decision-making cycle. Unlike previous iterations, "
-                            <span class="bg-[#fa813a]/20 border-b-2 border-[#C45911] font-bold italic">
-                                "the OLIV4600 engine ensures 100% data sovereignty by executing all
-                                weights locally"
-                            </span>
-                            " within the hardened perimeter."
-                        </p>
-                        // Pull quote block — visually distinct section of cited content
-                        <div class="bg-surf-cont p-6 my-8 rounded-lg border-l-4 border-primary">
-                            <p class="italic text-slate-600">
-                                "\"The architecture of the future is not built on more data,
-                                but on more verifiable intelligence.\" — Strategic Memo X-12"
-                            </p>
-                        </div>
-                        <p>
-                            "Furthermore, the development of kinetic-response AI requires a rigorous ethical
-                            framework that operates "
-                            <span class="bg-[#fa813a]/20 border-b-2 border-[#C45911]">
-                                "independent of external connectivity"
-                            </span>
-                            ". This \"Air-Gap Intelligence\" model is the cornerstone of our current
-                            sovereign defense posture."
-                        </p>
-                    </article>
+            // ── Panel izquierdo: documento fuente ──────────────────────────────
+            <section class="w-1/2 bg-surf-low border-r border-slate-200 flex flex-col overflow-hidden">
+                // Cabecera
+                <div class="h-12 border-b border-slate-100 flex items-center px-6 shrink-0 bg-surf-low/80">
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-outline">
+                        {move || {
+                            let f = ctx.filename.get();
+                            if f.is_empty() { "Sin documento cargado".to_string() }
+                            else { format!("Fuente: {f}") }
+                        }}
+                    </span>
                 </div>
-
-                // Quick-question chips (CHA-002) — floating above the scroll area
-                // These are preset prompts that bypass the input field and fire immediately.
-                // TODO: on chip click → add the chip text as a user message → POST /api/chat
-                <div class="sticky bottom-0 flex gap-2 flex-wrap pt-4 pb-2">
-                    <QuickChip icon="child_care" label="Explain like I'm 12"/>
-                    <QuickChip icon="warning"    label="What are the risks?"/>
-                    <QuickChip icon="search"     label="What information is missing?"/>
-                    // TODO (CHA-003): "2-minute briefing" chip → generates an oral summary
-                    // formatted with speaker pause marks, suitable for reading aloud
-                    <QuickChip icon="mic"        label="2-minute briefing"/>
+                // Texto del documento
+                <div class="flex-1 overflow-y-auto p-12">
+                    {move || {
+                        let text = ctx.text.get();
+                        if text.is_empty() {
+                            view! {
+                                <div class="flex flex-col items-center justify-center h-full text-center opacity-40">
+                                    <span class="material-symbols-outlined text-[48px] text-primary mb-4">"description"</span>
+                                    <p class="font-serif italic text-xl text-primary">
+                                        "Carga un documento para chatear con él"
+                                    </p>
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! {
+                                <div class="max-w-2xl mx-auto bg-white shadow-sm p-10">
+                                    <div class="mb-8 border-b border-slate-100 pb-6">
+                                        <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">
+                                            {move || ctx.filename.get()}
+                                        </span>
+                                        <div class="mt-2 flex gap-3 text-[10px] font-bold uppercase text-outline">
+                                            <span>{move || format!("{} palabras", ctx.word_count.get())}</span>
+                                        </div>
+                                    </div>
+                                    <article class="font-serif text-base leading-relaxed text-slate-800 whitespace-pre-wrap">
+                                        {text}
+                                    </article>
+                                </div>
+                            }.into_any()
+                        }
+                    }}
+                </div>
+                // Quick chips (CHA-002) — cada chip tiene su propia closure independiente
+                // (todos los signals son Copy, no se necesita Clone)
+                <div class="border-t border-slate-200 flex gap-2 flex-wrap p-4 bg-white/80 shrink-0">
+                    {[
+                        ("child_care",  "Explícamelo como si tuviera 12 años"),
+                        ("warning",     "¿Cuáles son los riesgos?"),
+                        ("search",      "¿Qué información falta?"),
+                        ("mic",         "Resumen de 2 minutos para comunicar en voz alta"),
+                    ].map(|(icon, label)| {
+                        let label_s = label.to_string();
+                        view! {
+                            <button
+                                class="bg-white/90 backdrop-blur shadow border border-slate-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-tight text-primary hover:bg-primary hover:text-white transition-all rounded-full flex items-center gap-1.5"
+                                on:click=move |_| {
+                                    if ctx.processing.get_untracked() { return; }
+                                    run_chat(ctx, messages, label_s.clone());
+                                }
+                            >
+                                <span class="material-symbols-outlined text-[13px]">{icon}</span>
+                                {label}
+                            </button>
+                        }
+                    }).collect_view()}
                 </div>
             </section>
 
-            // ── Right Panel: Chat Interface ────────────────────────────────────
+            // ── Panel derecho: interfaz de chat ────────────────────────────────
             <section class="w-1/2 flex flex-col bg-white">
 
-                // Chat status ribbon — shows session metadata
-                // TODO: populate thread ID from project context (unique per document session)
-                // TODO (CHA-004): session history is stored in memory for the duration of
-                // the browser session. For persistent history, POST /api/chat saves each
-                // exchange to SQLite under the project_id. On project re-open, load history.
-                <div class="h-12 border-b border-slate-100 flex items-center justify-between px-6 bg-surf-low/50">
+                // Ribbon de estado
+                <div class="h-12 border-b border-slate-100 flex items-center justify-between px-6 bg-surf-low/50 shrink-0">
                     <div class="flex items-center gap-4">
                         <div class="flex items-center gap-2">
                             <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
@@ -1986,79 +2773,137 @@ fn ChatView() -> impl IntoView {
                                 "Local Instance Online"
                             </span>
                         </div>
-                        <div class="h-4 w-[1px] bg-slate-300"></div>
-                        <span class="text-[10px] font-bold text-primary uppercase">
-                            "Thread: Defense-Audit-X4"
-                        </span>
                     </div>
                     <div class="flex gap-3">
-                        // TODO: download exports the full conversation as a markdown transcript
-                        <span class="material-symbols-outlined text-slate-400 text-sm cursor-pointer hover:text-primary">"download"</span>
-                        <span class="material-symbols-outlined text-slate-400 text-sm cursor-pointer hover:text-primary">"more_vert"</span>
+                        <button
+                            class="text-slate-400 text-sm hover:text-primary"
+                            title="Limpiar conversación"
+                            on:click=move |_| messages.set(Vec::new())
+                        >
+                            <span class="material-symbols-outlined text-sm">"delete_sweep"</span>
+                        </button>
                     </div>
                 </div>
 
-                // Chat message thread
-                <div class="flex-1 overflow-y-auto p-8 space-y-8">
+                // Hilo de mensajes
+                <div class="flex-1 overflow-y-auto p-8 space-y-6">
+                    // Saludo inicial si no hay mensajes
+                    {move || messages.get().is_empty().then(|| view! {
+                        <div class="flex flex-col items-start max-w-[85%]">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="w-6 h-6 bg-primary text-white flex items-center justify-center text-[10px] font-bold rounded">"O"</span>
+                                <span class="text-[11px] font-bold uppercase text-slate-400 tracking-tight">"OLIV4600 Engine"</span>
+                            </div>
+                            <div class="bg-surf-low p-5 rounded-xl rounded-tl-none border border-slate-100">
+                                <p class="font-serif text-base text-slate-700 leading-snug">
+                                    {move || {
+                                        let f = ctx.filename.get();
+                                        if f.is_empty() {
+                                            "Hola. Carga un documento para empezar a trabajar con él.".to_string()
+                                        } else {
+                                            format!("He cargado «{f}». ¿Qué quieres saber sobre este documento?")
+                                        }
+                                    }}
+                                </p>
+                            </div>
+                        </div>
+                    })}
 
-                    // AI greeting message (shown on document load)
-                    // TODO: generate this automatically when a document is first loaded:
-                    // POST /api/chat with a special "init" message that triggers the model
-                    // to describe what it found in the document and offer assistance.
-                    <ChatBubbleAi
-                        text="I've analyzed your document. What would you like to know about the sovereign defense architecture or the identified risk factors?"
-                    />
-
-                    // User message example
-                    <ChatBubbleUser
-                        text="Can you elaborate on the security benefits of the local engine mentioned in the analysis?"
-                        time="14:22"
-                    />
-
-                    // AI detailed response
-                    // TODO: structured responses (numbered lists, headers) should be rendered
-                    // as rich HTML from a lightweight Markdown parser, not as raw text.
-                    // TODO (VER-002): each cited fact should include a "§ source" link that,
-                    // when clicked, scrolls the document panel to the referenced passage and
-                    // highlights it with the .highlight-ref style.
-                    <ChatBubbleAiDetailed/>
+                    // Mensajes reactivos
+                    {move || messages.get().into_iter().enumerate().map(|(i, (role, content))| {
+                        if role == "user" {
+                            view! {
+                                <div class="flex flex-col items-end w-full">
+                                    <div class="max-w-[75%] bg-primary text-white p-4 rounded-xl rounded-tr-none shadow-md">
+                                        <p class="text-sm leading-relaxed">{content}</p>
+                                    </div>
+                                </div>
+                            }.into_any()
+                        } else {
+                            // Asistente — puede estar en streaming (último mensaje + processing)
+                            let is_streaming = move || {
+                                ctx.processing.get()
+                                    && i == messages.get().len().saturating_sub(1)
+                            };
+                            view! {
+                                <div class="flex flex-col items-start max-w-[88%]">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="w-6 h-6 bg-primary text-white flex items-center justify-center text-[10px] font-bold rounded">"O"</span>
+                                        <span class="text-[11px] font-bold uppercase text-slate-400 tracking-tight">"OLIV4600 Engine"</span>
+                                    </div>
+                                    <div class="bg-surf-low p-5 rounded-xl rounded-tl-none border border-slate-100 group">
+                                        <p class="font-serif text-base text-slate-700 leading-snug whitespace-pre-wrap">
+                                            {content}
+                                            // Cursor parpadeante mientras llegan tokens
+                                            {move || is_streaming().then(|| view! {
+                                                <span class="inline-block w-2 h-4 bg-primary animate-pulse align-middle ml-0.5"></span>
+                                            })}
+                                        </p>
+                                        <button
+                                            class="mt-3 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                                            on:click={
+                                                // .get(i) → Option<&(String,String)>; usamos .1 para el texto
+                                                let c = messages.get_untracked()
+                                                    .get(i)
+                                                    .map(|pair| pair.1.clone())
+                                                    .unwrap_or_default();
+                                                move |_| copy_to_clipboard(c.clone())
+                                            }
+                                        >
+                                            <span class="material-symbols-outlined text-xs">"content_copy"</span>
+                                            "Copiar"
+                                        </button>
+                                    </div>
+                                </div>
+                            }.into_any()
+                        }
+                    }).collect_view()}
                 </div>
 
-                // Message input area
-                // TODO: submit on Enter key (prevent newline), allow Shift+Enter for newline.
-                // Show "OLIV4600 is thinking..." indicator while the SSE stream is open.
-                // Display token count to help users stay within the context window (CHA-001).
-                <div class="p-8 bg-white border-t border-slate-100">
-                    <div class="relative flex items-end gap-4 bg-surf-low rounded-xl p-4 border border-slate-200 focus-within:border-primary transition-all">
+                // Área de entrada de texto
+                <div class="p-6 bg-white border-t border-slate-100 shrink-0">
+                    <div class="relative flex items-end gap-3 bg-surf-low rounded-xl p-3 border border-slate-200 focus-within:border-primary transition-all">
                         <textarea
                             class="flex-1 bg-transparent border-none focus:ring-0 text-sm text-on-surf placeholder:text-slate-400 resize-none max-h-32"
-                            placeholder="Ask the sovereign engine anything about this document..."
+                            placeholder="Pregunta al motor soberano sobre este documento..."
                             rows="2"
+                            prop:value={move || input_text.get()}
+                            on:input=move |ev| set_input_text.set(event_target_value(&ev))
+                            on:keydown=move |ev| {
+                                // Enter sin Shift = enviar
+                                if ev.key() == "Enter" && !ev.shift_key() {
+                                    ev.prevent_default();
+                                    let msg = input_text.get_untracked().trim().to_string();
+                                    if !msg.is_empty() && !ctx.processing.get_untracked() {
+                                        set_input_text.set(String::new());
+                                        run_chat(ctx, messages, msg);
+                                    }
+                                }
+                            }
                         />
-                        <div class="flex gap-2">
-                            // TODO (ING-005): attach additional context documents to the
-                            // conversation — uploaded files are appended to the context window
-                            <button class="p-2 text-slate-400 hover:text-primary transition-colors">
-                                <span class="material-symbols-outlined">"attach_file"</span>
-                            </button>
-                            // TODO: on click → read textarea value → POST /api/chat →
-                            // open SSE stream → append tokens to chat panel in real time
-                            <button class="bg-[#C45911] text-white p-3 rounded-lg shadow-md hover:bg-[#401700] transition-all active:scale-95">
-                                <span class="material-symbols-outlined">"send"</span>
-                            </button>
-                        </div>
+                        <button
+                            class="bg-[#C45911] text-white p-3 rounded-lg shadow-md hover:bg-[#401700] transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled=move || ctx.processing.get() || input_text.get().trim().is_empty()
+                            on:click=move |_| {
+                                let msg = input_text.get_untracked().trim().to_string();
+                                if !msg.is_empty() && !ctx.processing.get_untracked() {
+                                    set_input_text.set(String::new());
+                                    run_chat(ctx, messages, msg);
+                                }
+                            }
+                        >
+                            <span class="material-symbols-outlined">"send"</span>
+                        </button>
                     </div>
-                    <div class="mt-4 flex justify-between items-center px-1">
+                    <div class="mt-3 flex justify-between items-center px-1">
                         <div class="flex items-center gap-2">
-                            <span class="material-symbols-outlined text-[16px] text-emerald-500">"verified_user"</span>
+                            <span class="material-symbols-outlined text-[14px] text-emerald-500">"verified_user"</span>
                             <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">
-                                "Secure Audit Mode Enabled"
+                                "Modo Auditoría Segura Activo"
                             </span>
                         </div>
-                        // TODO: update this live as the conversation grows.
-                        // When nearing the context limit, show a warning in amber.
                         <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">
-                            "Context Window: 12.4k tokens"
+                            {move || format!("{} mensajes", messages.get().len())}
                         </span>
                     </div>
                 </div>
@@ -2203,6 +3048,7 @@ fn ChatAnswerPoint(n: &'static str, title: &'static str, text: &'static str) -> 
 
 #[component]
 fn PipelineView() -> impl IntoView {
+    let show_note = RwSignal::new(true);
     view! {
         <section class="p-12 flex flex-col min-h-full">
 
@@ -2362,43 +3208,39 @@ fn PipelineView() -> impl IntoView {
             </div>
 
             // ── Floating Architect's Note (Glassmorphism panel) ────────────────
-            // Proactive AI suggestion panel — alerts the user to pipeline inconsistencies.
-            // Design: glassmorphism per DESIGN.md §2 "Glass & Gradient Rule":
-            //   backdrop-blur-2xl, rgba(255,255,255,0.70), ambient shadow.
-            //
-            // TODO (CAD-003 + INV-002): "Architect's Note" suggestions are generated by
-            // the Inverse Questions engine (Module 9). When a source document is modified,
-            // POST /api/pipeline/diff compares the old and new versions (ARI-002 semantic
-            // differential) and generates a targeted propagation recommendation.
-            <div class="fixed bottom-12 right-12 w-80 bg-white/70 backdrop-blur-2xl p-6 shadow-2xl border border-white/40 rounded-lg z-50">
-                <div class="flex items-start gap-4">
-                    <div class="p-2 bg-[#C45911]/10 text-[#C45911] rounded">
-                        <span class="material-symbols-outlined text-lg">"insights"</span>
-                    </div>
-                    <div class="flex-1">
-                        <h5 class="font-sans font-bold text-xs uppercase tracking-tight text-primary mb-2">
-                            "Architect's Note"
-                        </h5>
-                        <p class="text-sm font-serif text-slate-600 leading-relaxed">
-                            "Source document changes detected in "
-                            <span class="font-bold text-primary">"Section 4.2"</span>
-                            ". Recommended regeneration of the "
-                            <span class="italic">"Press Release"</span>
-                            " node to maintain integrity."
-                        </p>
-                        <div class="mt-4 flex gap-3">
-                            // TODO: "Accept" → POST /api/pipeline/regenerate-node { node_id: "press_release" }
-                            <button class="text-[10px] font-sans font-black uppercase tracking-wider text-primary border-b border-primary pb-0.5">
-                                "Accept"
-                            </button>
-                            // TODO: "Dismiss" → mark this diff notification as dismissed in SQLite
-                            <button class="text-[10px] font-sans font-black uppercase tracking-wider text-slate-400 hover:text-red-500 transition-colors">
-                                "Dismiss"
-                            </button>
+            // Architect's Note — dismissable con señal reactiva
+            {move || show_note.get().then(|| view! {
+                <div class="fixed bottom-12 right-12 w-80 bg-white/70 backdrop-blur-2xl p-6 shadow-2xl border border-white/40 rounded-lg z-50">
+                    <div class="flex items-start gap-4">
+                        <div class="p-2 bg-[#C45911]/10 text-[#C45911] rounded">
+                            <span class="material-symbols-outlined text-lg">"insights"</span>
+                        </div>
+                        <div class="flex-1">
+                            <h5 class="font-sans font-bold text-xs uppercase tracking-tight text-primary mb-2">
+                                "Architect's Note"
+                            </h5>
+                            <p class="text-sm font-serif text-slate-600 leading-relaxed">
+                                "Source document changes detected in "
+                                <span class="font-bold text-primary">"Section 4.2"</span>
+                                ". Recommended regeneration of the "
+                                <span class="italic">"Press Release"</span>
+                                " node to maintain integrity."
+                            </p>
+                            <div class="mt-4 flex gap-3">
+                                <button class="text-[10px] font-sans font-black uppercase tracking-wider text-primary border-b border-primary pb-0.5">
+                                    "Accept"
+                                </button>
+                                <button
+                                    class="text-[10px] font-sans font-black uppercase tracking-wider text-slate-400 hover:text-red-500 transition-colors"
+                                    on:click=move |_| show_note.set(false)
+                                >
+                                    "Dismiss"
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            })}
         </section>
     }
 }
@@ -2553,6 +3395,324 @@ fn PipelineDerivedNode(
 // TODO (PUB-006): run GDPR/LOPDGDD compliance check on export — flag any entries
 // that involve personal data (detected via Module 14 — PUB-001) and prompt the
 // user to apply redactions before downloading the log.
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIEW: ARCHIVE (Biblioteca de proyectos)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Lista completa de proyectos procesados, con búsqueda, filtros y acceso rápido
+// al análisis cacheado y las transformaciones de cada documento.
+//
+// Fuente de datos: GET /api/projects?limit=N → tabla `projects` en SQLite.
+// Cada proyecto se crea automáticamente en /api/extract y se enriquece con
+// has_analysis=true cuando se completa un análisis (POST /api/analysis).
+
+#[component]
+fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+
+    // ── Estado reactivo ───────────────────────────────────────────────────────
+    let projects:   RwSignal<Option<Vec<ApiProject>>> = RwSignal::new(None);
+    let search:     RwSignal<String>                  = RwSignal::new(String::new());
+    let loading:    RwSignal<bool>                    = RwSignal::new(true);
+
+    // ── Cargar proyectos al montar ────────────────────────────────────────────
+    // El plugin lee su propia tabla oliv_projects vía el endpoint genérico del core.
+    spawn_local(async move {
+        let rows = plugin_query(
+            "SELECT doc_hash, doc_name, original_path, word_count, \
+             transform_count, has_analysis, created_at, updated_at \
+             FROM oliv_projects ORDER BY updated_at DESC LIMIT 200",
+            vec![],
+        ).await;
+        let data = rows.into_iter().filter_map(|r| {
+            Some(ApiProject {
+                doc_hash:        r["doc_hash"].as_str()?.to_string(),
+                doc_name:        r["doc_name"].as_str()?.to_string(),
+                original_path:   r["original_path"].as_str()?.to_string(),
+                word_count:      r["word_count"].as_u64()? as u32,
+                transform_count: r["transform_count"].as_u64()? as u32,
+                has_analysis:    r["has_analysis"].as_i64()? != 0,
+                created_at:      r["created_at"].as_str()?.to_string(),
+                updated_at:      r["updated_at"].as_str()?.to_string(),
+            })
+        }).collect::<Vec<_>>();
+        projects.set(Some(data));
+        loading.set(false);
+    });
+
+    // ── Proyectos filtrados por búsqueda ──────────────────────────────────────
+    let filtered = move || {
+        let q = search.get().to_lowercase();
+        projects.get()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|p| q.is_empty() || p.doc_name.to_lowercase().contains(&q))
+            .collect::<Vec<_>>()
+    };
+
+    // ── Abrir un proyecto: carga el texto desde el servidor y navega al Editor ─
+    let open_project = move |hash: String, _: web_sys::MouseEvent| {
+        // Recuperar el proyecto del estado local para obtener original_path
+        if let Some(projs) = projects.get_untracked() {
+            if let Some(p) = projs.iter().find(|p| p.doc_hash == hash) {
+                let path = p.original_path.clone();
+                spawn_local(async move {
+                    // Re-extraer el texto (el archivo ya está en uploads/)
+                    let body = serde_json::json!({ "path": path }).to_string();
+                    let headers = web_sys::Headers::new().unwrap();
+                    headers.set("Content-Type", "application/json").unwrap();
+                    let opts = web_sys::RequestInit::new();
+                    opts.set_method("POST");
+                    opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+                    opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+                    if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/extract", &opts) {
+                        if let Some(w) = web_sys::window() {
+                            if let Ok(rv) = JsFuture::from(w.fetch_with_request(&req)).await {
+                                let resp: web_sys::Response = rv.unchecked_into();
+                                if resp.ok() {
+                                    if let Ok(jv) = JsFuture::from(resp.json().unwrap()).await {
+                                        let get = |k: &str| js_sys::Reflect::get(&jv, &wasm_bindgen::JsValue::from_str(k))
+                                            .ok().and_then(|v| v.as_string()).unwrap_or_default();
+                                        let text  = get("text");
+                                        let fname = get("filename");
+                                        let wc    = js_sys::Reflect::get(&jv, &wasm_bindgen::JsValue::from_str("word_count"))
+                                            .ok().and_then(|v| v.as_f64()).unwrap_or(0.0) as u32;
+                                        ctx.text.set(text);
+                                        ctx.filename.set(fname);
+                                        ctx.word_count.set(wc);
+                                        set_active_view.set(View::Editor);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    };
+
+    // ── Abrir análisis: carga el proyecto y navega a Analysis ─────────────────
+    let open_analysis = move |hash: String, _: web_sys::MouseEvent| {
+        if let Some(projs) = projects.get_untracked() {
+            if let Some(p) = projs.iter().find(|p| p.doc_hash == hash) {
+                let path = p.original_path.clone();
+                spawn_local(async move {
+                    let body = serde_json::json!({ "path": path }).to_string();
+                    let headers = web_sys::Headers::new().unwrap();
+                    headers.set("Content-Type", "application/json").unwrap();
+                    let opts = web_sys::RequestInit::new();
+                    opts.set_method("POST");
+                    opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+                    opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+                    if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/extract", &opts) {
+                        if let Some(w) = web_sys::window() {
+                            if let Ok(rv) = JsFuture::from(w.fetch_with_request(&req)).await {
+                                let resp: web_sys::Response = rv.unchecked_into();
+                                if resp.ok() {
+                                    if let Ok(jv) = JsFuture::from(resp.json().unwrap()).await {
+                                        let get = |k: &str| js_sys::Reflect::get(&jv, &wasm_bindgen::JsValue::from_str(k))
+                                            .ok().and_then(|v| v.as_string()).unwrap_or_default();
+                                        ctx.text.set(get("text"));
+                                        ctx.filename.set(get("filename"));
+                                        let wc = js_sys::Reflect::get(&jv, &wasm_bindgen::JsValue::from_str("word_count"))
+                                            .ok().and_then(|v| v.as_f64()).unwrap_or(0.0) as u32;
+                                        ctx.word_count.set(wc);
+                                        set_active_view.set(View::Analysis);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    };
+
+    view! {
+        <div class="p-10 max-w-7xl mx-auto">
+
+            // ── Header ────────────────────────────────────────────────────────
+            <header class="mb-8">
+                <div class="flex justify-between items-end flex-wrap gap-4">
+                    <div>
+                        <h2 class="text-4xl font-sans font-black tracking-tighter text-primary uppercase">
+                            "Biblioteca de Proyectos"
+                        </h2>
+                        <p class="font-serif italic text-xl text-outline mt-1">
+                            {move || {
+                                let n = projects.get().map(|v| v.len()).unwrap_or(0);
+                                format!("{n} documento{} procesado{}", if n == 1 { "" } else { "s" }, if n == 1 { "" } else { "s" })
+                            }}
+                        </p>
+                    </div>
+                    // Buscador
+                    <div class="flex items-center gap-2 px-3 py-2 bg-white border border-outline-variant/20 rounded-sm shadow-sm w-72">
+                        <span class="material-symbols-outlined text-outline text-[20px]">"search"</span>
+                        <input
+                            type="text"
+                            placeholder="Buscar documento…"
+                            class="bg-transparent border-none outline-none text-sm font-label w-full placeholder:text-outline-variant"
+                            on:input=move |e| {
+                                use wasm_bindgen::JsCast;
+                                let val = e.target().unwrap()
+                                    .unchecked_into::<web_sys::HtmlInputElement>()
+                                    .value();
+                                search.set(val);
+                            }
+                        />
+                    </div>
+                </div>
+            </header>
+
+            // ── Loading ───────────────────────────────────────────────────────
+            {move || loading.get().then(|| view! {
+                <div class="flex items-center gap-3 py-20 justify-center text-outline">
+                    <div class="w-2 h-2 rounded-full bg-outline animate-pulse"></div>
+                    <span class="text-sm font-label">"Cargando proyectos…"</span>
+                </div>
+            })}
+
+            // ── Empty state ───────────────────────────────────────────────────
+            {move || (!loading.get() && filtered().is_empty()).then(|| view! {
+                <div class="flex flex-col items-center justify-center py-32 text-center">
+                    <span class="material-symbols-outlined text-6xl text-outline/20 mb-6">"folder_open"</span>
+                    <h3 class="font-sans font-black text-xl text-primary mb-2">
+                        {if search.get().is_empty() { "Sin proyectos todavía" } else { "Sin resultados" }}
+                    </h3>
+                    <p class="font-serif italic text-outline max-w-sm">
+                        {if search.get().is_empty() {
+                            "Sube un documento desde el Editor para crear tu primer proyecto."
+                        } else {
+                            "Prueba con otro término de búsqueda."
+                        }}
+                    </p>
+                </div>
+            })}
+
+            // ── Tabla de proyectos ────────────────────────────────────────────
+            {move || (!loading.get() && !filtered().is_empty()).then(|| {
+                let rows = filtered();
+                view! {
+                    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                        // Cabecera
+                        <div class="grid grid-cols-12 gap-4 px-6 py-3 bg-surface-container-low border-b border-outline-variant/10">
+                            <div class="col-span-5 text-[10px] font-black uppercase tracking-widest text-outline">"Documento"</div>
+                            <div class="col-span-2 text-[10px] font-black uppercase tracking-widest text-outline">"Palabras"</div>
+                            <div class="col-span-2 text-[10px] font-black uppercase tracking-widest text-outline">"Transforms."</div>
+                            <div class="col-span-1 text-[10px] font-black uppercase tracking-widest text-outline">"Análisis"</div>
+                            <div class="col-span-2 text-[10px] font-black uppercase tracking-widest text-outline text-right">"Acciones"</div>
+                        </div>
+                        // Filas
+                        <div class="divide-y divide-outline-variant/10">
+                            {rows.into_iter().map(|p| {
+                                let hash1 = p.doc_hash.clone();
+                                let hash2 = p.doc_hash.clone();
+                                let has_a = p.has_analysis;
+                                // Fecha legible: tomar los 10 primeros chars del ISO string
+                                let date = if p.updated_at.len() >= 10 {
+                                    p.updated_at[..10].to_string()
+                                } else { p.updated_at.clone() };
+                                // Nombre limpio (solo el filename)
+                                let name = p.doc_name.split('/').last()
+                                    .unwrap_or(&p.doc_name).to_string();
+                                let wc   = p.word_count;
+                                let tc   = p.transform_count;
+                                view! {
+                                    <div class="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-surface-container-lowest/50 transition-colors group">
+                                        // Nombre + fecha
+                                        <div class="col-span-5">
+                                            <div class="flex items-center gap-3">
+                                                <span class="material-symbols-outlined text-outline/40 text-[20px] shrink-0">"description"</span>
+                                                <div class="min-w-0">
+                                                    <p class="font-serif font-bold text-sm text-primary truncate">{name}</p>
+                                                    <p class="text-[10px] text-outline font-label">{date}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        // Word count
+                                        <div class="col-span-2 text-sm font-label text-on-surface-variant">
+                                            {format!("{wc}")}
+                                        </div>
+                                        // Transformaciones
+                                        <div class="col-span-2">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-sm font-label text-on-surface-variant">{format!("{tc}")}</span>
+                                                {(tc > 0).then(|| view! {
+                                                    <div class="h-1 flex-1 bg-surface-container-high rounded-full overflow-hidden max-w-16">
+                                                        <div
+                                                            class="h-full bg-primary rounded-full"
+                                                            style=format!("width: {}%", (tc * 10).min(100))
+                                                        ></div>
+                                                    </div>
+                                                })}
+                                            </div>
+                                        </div>
+                                        // Badge análisis
+                                        <div class="col-span-1">
+                                            {if has_a {
+                                                view! {
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-[#003b65] text-[#66a6ea] text-[9px] font-black uppercase tracking-widest rounded-sm">
+                                                        <span class="w-1 h-1 rounded-full bg-[#66a6ea]"></span>
+                                                        "BD"
+                                                    </span>
+                                                }.into_any()
+                                            } else {
+                                                view! {
+                                                    <span class="text-[10px] text-outline font-label">"—"</span>
+                                                }.into_any()
+                                            }}
+                                        </div>
+                                        // Acciones
+                                        <div class="col-span-2 flex items-center justify-end gap-2">
+                                            // Abrir en editor
+                                            <button
+                                                on:click={
+                                                    let h = hash1.clone();
+                                                    let f = open_project;
+                                                    move |e| f(h.clone(), e)
+                                                }
+                                                title="Abrir en Editor"
+                                                class="p-1.5 text-outline hover:text-primary transition-colors rounded"
+                                            >
+                                                <span class="material-symbols-outlined text-[18px]">"edit_note"</span>
+                                            </button>
+                                            // Abrir análisis (solo si tiene caché)
+                                            <button
+                                                on:click={
+                                                    let h = hash2.clone();
+                                                    let f = open_analysis;
+                                                    move |e| f(h.clone(), e)
+                                                }
+                                                title={if has_a { "Ver análisis cacheado" } else { "Ejecutar análisis" }}
+                                                class=move || format!(
+                                                    "p-1.5 transition-colors rounded {}",
+                                                    if has_a { "text-[#66a6ea] hover:text-primary" }
+                                                    else { "text-outline hover:text-primary" }
+                                                )
+                                            >
+                                                <span class="material-symbols-outlined text-[18px]">"analytics"</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                            }).collect_view()}
+                        </div>
+                    </div>
+                }.into_any()
+            })}
+
+            // ── Footer ────────────────────────────────────────────────────────
+            <footer class="mt-12 flex justify-between items-center text-outline-variant">
+                <p class="text-[10px] font-bold uppercase tracking-widest">
+                    "© 2026 OLIV4600 SOVEREIGN SYSTEMS"
+                </p>
+                <p class="text-[10px] font-bold uppercase tracking-widest">
+                    "~/.local-ai/projects/ · datos 100% locales"
+                </p>
+            </footer>
+        </div>
+    }
+}
 
 #[component]
 fn AuditView() -> impl IntoView {

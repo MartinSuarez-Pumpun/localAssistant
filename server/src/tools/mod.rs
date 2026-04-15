@@ -1,4 +1,4 @@
-mod files;
+pub mod files;
 mod shell;
 
 use std::sync::Arc;

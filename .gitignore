@@ -28,3 +28,4 @@ plugins/*/app/*.js
 # Secrets / local config
 .env
 *.local
+server/scripts/node_modules/

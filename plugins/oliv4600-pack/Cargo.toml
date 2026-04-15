@@ -13,6 +13,7 @@ wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+gloo-timers = { version = "0.3", features = ["futures"] }
 
 [dependencies.web-sys]
 version = "0.3"
@@ -46,6 +47,9 @@ features = [
   "Response",
   "Url",
   "Window",
+  "SubtleCrypto",
+  "Crypto",
+  "CryptoKey",
 ]
 
 [profile.release]

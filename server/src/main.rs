@@ -1,4 +1,5 @@
 mod config;
+mod db;
 mod routes;
 mod tools;
 
@@ -17,13 +18,14 @@ use tracing::info;
 use wry::WebViewBuilder;
 
 use config::Config;
-use routes::{browse, chat, download, export, extract, plugins, settings, static_files, transform, upload};
+use routes::{browse, chat, download, export, extract, history, plugin_db, plugins, render, settings, transform, upload};
 use routes::settings::Settings;
 
 #[derive(Clone)]
 pub struct AppState {
     pub config:   Arc<Config>,
     pub settings: Arc<RwLock<Settings>>,
+    pub db:       db::Db,
 }
 
 #[derive(Parser, Debug)]
@@ -50,6 +52,12 @@ fn main() -> anyhow::Result<()> {
     let loaded   = Settings::load(&config.settings_path());
     let settings = Arc::new(RwLock::new(loaded));
 
+    // ── Base de datos SQLite (crea ~/.local-ai/ si no existe) ─────────────────
+    std::fs::create_dir_all(&*config.ai_base).ok();
+    let db_path = config.ai_base.join("oliv.db");
+    let database = db::Db::open(&db_path).expect("no se pudo abrir SQLite");
+    info!("SQLite         : {}", db_path.display());
+
     info!("LLM endpoint : {}", settings.read().unwrap().llm_endpoint);
     info!("Web dist     : {}", config.web_dist.display());
     info!("Plugins dir  : {}", config.plugins_dir.display());
@@ -62,10 +70,11 @@ fn main() -> anyhow::Result<()> {
     {
         let config   = config.clone();
         let settings = settings.clone();
+        let database = database.clone();
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
             rt.block_on(async move {
-                run_server(config, settings, port).await.expect("server error");
+                run_server(config, settings, database, port).await.expect("server error");
             });
         });
     }
@@ -107,12 +116,14 @@ fn main() -> anyhow::Result<()> {
 async fn run_server(
     config:   Arc<Config>,
     settings: Arc<RwLock<Settings>>,
+    database: db::Db,
     port:     u16,
 ) -> anyhow::Result<()> {
-    let state = AppState { config: config.clone(), settings };
+    let state = AppState { config: config.clone(), settings, db: database };
 
     let app = Router::new()
         .route("/health", get(health))
+        .merge(plugin_db::router())
         .merge(chat::router())
         .merge(browse::router())
         .merge(upload::router())
@@ -120,6 +131,8 @@ async fn run_server(
         .merge(extract::router())
         .merge(transform::router())
         .merge(export::router())
+        .merge(render::router())
+        .merge(history::router())
         .merge(plugins::router())      // ← plugins ANTES de static_files
         .merge(settings::router())
         .fallback_service(             // ← static_files como fallback GLOBAL al final
