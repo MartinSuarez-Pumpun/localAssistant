@@ -40,7 +40,7 @@ struct ApiTransform {
     created_at: String,
 }
 
-/// Row returned by GET /api/projects
+/// Proyecto del plugin — fila de oliv_projects
 #[derive(Clone, Serialize, Deserialize)]
 struct ApiProject {
     doc_hash:        String,
@@ -48,8 +48,6 @@ struct ApiProject {
     #[allow(dead_code)]
     original_path:   String,
     word_count:      u32,
-    #[allow(dead_code)]
-    language:        String,
     transform_count: u32,
     has_analysis:    bool,
     created_at:      String,
