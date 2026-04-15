@@ -65,6 +65,16 @@ async fn chat_stream(
 
     tokio::spawn(async move {
         let mut messages = req.messages.clone();
+        // Añade /no_think al último mensaje de usuario para desactivar
+        // el chain-of-thought interno de Qwen 3 (<think>…</think>)
+        if let Some(last) = messages.last_mut() {
+            if last["role"].as_str() == Some("user") {
+                if let Some(content) = last["content"].as_str() {
+                    let new_content = format!("{content}\n\n/no_think");
+                    *last = serde_json::json!({"role": "user", "content": new_content});
+                }
+            }
+        }
         let tools = req.tools.clone().unwrap_or_default();
 
         // Tool loop — máx 5 rondas (igual que serve.py)

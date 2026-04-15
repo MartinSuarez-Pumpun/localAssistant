@@ -37,6 +37,9 @@ use crate::AppState;
 pub struct TransformRequest {
     pub text:         String,
     pub action:       String,
+    /// Nombre del archivo fuente (para persistencia TRA-001)
+    #[serde(default)]
+    pub doc_name:     String,
     #[serde(default = "default_length")]
     pub length_words: u32,
     #[serde(default = "default_tone")]
@@ -66,14 +69,14 @@ async fn transform_handler(
 ) -> Response {
     let (tx, rx) = mpsc::channel::<String>(64);
 
-    let snapshot = state.settings.read().unwrap().clone();
-    let endpoint = snapshot.llm_endpoint.clone();
-    let model = if snapshot.llm_model.is_empty() {
-        "llama3".to_string()
-    } else {
-        snapshot.llm_model.clone()
-    };
-    let api_key = snapshot.api_key.clone();
+    let snapshot  = state.settings.read().unwrap().clone();
+    let endpoint  = snapshot.llm_endpoint.clone();
+    let model     = if snapshot.llm_model.is_empty() { "llama3".to_string() } else { snapshot.llm_model.clone() };
+    let api_key   = snapshot.api_key.clone();
+    let db        = state.db.clone();
+    let doc_name  = if req.doc_name.is_empty() { "Sin título".to_string() } else { req.doc_name.clone() };
+    let action    = req.action.clone();
+    let word_count = req.text.split_whitespace().count() as u32;
 
     let (system_prompt, user_msg) = build_prompt(&req);
 
@@ -123,8 +126,9 @@ async fn transform_handler(
             return;
         }
 
-        let mut stream = resp.bytes_stream();
-        let mut buf    = String::new();
+        let mut stream  = resp.bytes_stream();
+        let mut buf     = String::new();
+        let mut full_output = String::new(); // TRA-001: acumulamos salida completa
 
         while let Some(chunk) = stream.next().await {
             let chunk = match chunk {
@@ -142,15 +146,27 @@ async fn transform_handler(
                 let json_str = line.strip_prefix("data: ").unwrap_or(&line);
                 let Ok(val)  = serde_json::from_str::<serde_json::Value>(json_str) else { continue; };
 
-                if let Some(text) = val["choices"][0]["delta"]["content"].as_str() {
-                    if !text.is_empty() {
+                if let Some(token) = val["choices"][0]["delta"]["content"].as_str() {
+                    if !token.is_empty() {
+                        full_output.push_str(token);
                         let _ = tx.send(format!(
                             "event: token\ndata: {}\n\n",
-                            serde_json::to_string(&serde_json::json!({"text": text})).unwrap()
+                            serde_json::to_string(&serde_json::json!({"text": token})).unwrap()
                         )).await;
                     }
                 }
             }
+        }
+
+        // ── TRA-001 / TRA-002: Persistir transformación completada ────────────
+        if !full_output.is_empty() {
+            let _ = db.insert_transformation(&doc_name, &action, word_count);
+            let payload = serde_json::json!({
+                "doc_name": doc_name,
+                "action":   action,
+                "words_in": word_count,
+            }).to_string();
+            let _ = db.log_event("transform", &payload);
         }
 
         let _ = tx.send("event: done\ndata: {}\n\n".into()).await;
@@ -687,5 +703,8 @@ fn build_prompt(req: &TransformRequest) -> (String, String) {
     };
 
     let system = format!("{base_system}\n\nINSTRUCCIÓN ESPECÍFICA: {action_instr}");
-    (system, user_msg)
+    // /no_think desactiva el chain-of-thought interno de Qwen 3,
+    // evitando que los tokens <channel|> / <think>…</think> lleguen al cliente.
+    let user_msg_final = format!("{user_msg}\n\n/no_think");
+    (system, user_msg_final)
 }

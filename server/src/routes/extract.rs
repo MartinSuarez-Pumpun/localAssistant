@@ -19,9 +19,9 @@ pub struct ExtractRequest {
 
 #[derive(Serialize)]
 pub struct ExtractResponse {
-    pub text: String,
+    pub text:       String,
     pub word_count: usize,
-    pub filename: String,
+    pub filename:   String,
 }
 
 pub fn router() -> Router<AppState> {
@@ -66,7 +66,6 @@ async fn extract_text(
             }
         }
         _ => {
-            // Text-based formats: txt, md, html, csv, json, yaml, toml, etc.
             match tokio::fs::read_to_string(&path).await {
                 Ok(t) => t,
                 Err(e) => return (StatusCode::UNPROCESSABLE_ENTITY, e.to_string()).into_response(),
