@@ -22,6 +22,7 @@ pub struct ExtractResponse {
     pub text:       String,
     pub word_count: usize,
     pub filename:   String,
+    pub doc_hash:   String,
 }
 
 pub fn router() -> Router<AppState> {
@@ -74,6 +75,14 @@ async fn extract_text(
     };
 
     let word_count = text.split_whitespace().count();
+    
+    // Generate doc_hash from filename and content
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    filename.hash(&mut hasher);
+    text.hash(&mut hasher);
+    let doc_hash = format!("{:x}", hasher.finish());
 
-    axum::Json(ExtractResponse { text, word_count, filename }).into_response()
+    axum::Json(ExtractResponse { text, word_count, filename, doc_hash }).into_response()
 }

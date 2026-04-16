@@ -18,7 +18,7 @@ use tracing::info;
 use wry::WebViewBuilder;
 
 use config::Config;
-use routes::{browse, chat, download, export, extract, history, plugin_db, plugins, render, settings, transform, upload};
+use routes::{analyse, browse, chat, download, export, extract, history, plugin_db, plugins, render, settings, transform, transformations, upload};
 use routes::settings::Settings;
 
 #[derive(Clone)]
@@ -129,7 +129,9 @@ async fn run_server(
         .merge(upload::router())
         .merge(download::router())
         .merge(extract::router())
+        .merge(analyse::router())
         .merge(transform::router())
+        .merge(transformations::router())
         .merge(export::router())
         .merge(render::router())
         .merge(history::router())

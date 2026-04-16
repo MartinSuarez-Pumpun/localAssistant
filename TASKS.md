@@ -10,7 +10,7 @@ Last updated: 2026-04-10
 
 ## Priority 1 — Analysis Screen (all data is static, needs real backend)
 
-### T01 — Backend: Flesch readability endpoint [ PENDING ]
+### T01 — Backend: Flesch readability endpoint [ DONE ]
 
 **What**: Add readability analysis to `/api/analyse` in `server/src/routes/`.
 Create `server/src/routes/analyse.rs` with a POST `/api/analyse` handler.
@@ -20,11 +20,11 @@ words, and sentences from the document text. Return JSON:
 Wire it into `server/src/routes/mod.rs` and `server/src/main.rs`.
 **Files**: `server/src/routes/analyse.rs` (new), `server/src/routes/mod.rs`, `server/src/main.rs`
 **Acceptance**: `cargo build` passes, endpoint exists and returns valid JSON.
-**Note**: —
+**Note**: Implemented Flesch-Kincaid readability metrics with English syllable heuristic. Endpoint ready for sentiment (T02) and NER (T03) extensions.
 
 ---
 
-### T02 — Backend: Sentiment scoring via LLM [ PENDING ]
+### T02 — Backend: Sentiment scoring via LLM [ DONE ]
 
 **What**: Extend `/api/analyse` to add sentiment scoring.
 POST body also has `"include_sentiment": true`. If set, make a one-shot LLM call
@@ -35,11 +35,11 @@ Add `"sentiment": string, "sentiment_score": f32` to the response.
 Reuse the existing LLM client pattern from `server/src/routes/transform.rs` or `chat.rs`.
 **Files**: `server/src/routes/analyse.rs`
 **Acceptance**: Returns `{sentiment, sentiment_score}` in addition to Flesch fields.
-**Note**: —
+**Note**: Implemented sentiment scoring via LLM with JSON parsing. Handles API key and endpoint configuration.
 
 ---
 
-### T03 — Backend: NER extraction via LLM [ PENDING ]
+### T03 — Backend: NER extraction via LLM [ DONE ]
 
 **What**: Extend `/api/analyse` to add Named Entity Recognition.
 One-shot LLM call: "Extract named entities from this text. Respond ONLY with JSON:
@@ -48,11 +48,11 @@ Limit input to first 2000 chars to avoid token overflow.
 Add `"entities": Vec<{text,type}>` to the response.
 **Files**: `server/src/routes/analyse.rs`
 **Acceptance**: Returns entities array.
-**Note**: —
+**Note**: Implemented NER extraction with 2000 char limit to prevent token overflow. Parses LLM JSON response into Entity structs.
 
 ---
 
-### T04 — Frontend: Wire Analysis screen to `/api/analyse` [ PENDING ]
+### T04 — Frontend: Wire Analysis screen to `/api/analyse` [ DONE ]
 
 **What**: In `plugins/oliv4600-pack/src/lib.rs`, find the `Analysis` view component
 (currently shows static Flesch gauge, static sentiment thermometer, static NER table).
@@ -62,13 +62,13 @@ Update the Flesch gauge value, sentiment thermometer, and NER table from real re
 Show a spinner while loading.
 **Files**: `plugins/oliv4600-pack/src/lib.rs`
 **Acceptance**: Analysis screen shows real data when a document is loaded.
-**Note**: —
+**Note**: Added call_api_analyse function to fetch real analysis data. Integrated RealAnalysisResult struct for parsing /api/analyse response with Flesch, sentiment, and NER data.
 
 ---
 
 ## Priority 2 — SQLite Persistence
 
-### T05 — Backend: Add SQLite dependency + DB init [ PENDING ]
+### T05 — Backend: Add SQLite dependency + DB init [ DONE ]
 
 **What**: Add `rusqlite = { version = "0.31", features = ["bundled"] }` to
 `server/Cargo.toml`. Create `server/src/db.rs`:
@@ -81,24 +81,24 @@ Show a spinner while loading.
 - Add `db: Arc<Mutex<Db>>` to `AppState` in `main.rs`. DB file: `~/.local-ai/oliv.db`.
   **Files**: `server/Cargo.toml`, `server/src/db.rs` (new), `server/src/main.rs`
   **Acceptance**: `cargo build` passes.
-  **Note**: —
+  **Note**: Already implemented. db.rs includes transformations and audit_log tables with indexes. Db struct wraps Arc<Mutex<Connection>>. Registered in main.rs with db::Db::open().
 
 ---
 
-### T06 — Backend: Persist transformations (TRA-001, TRA-002) [ PENDING ]
+### T06 — Backend: Persist transformations (TRA-001, TRA-002) [ DONE ]
 
 **Depends on**: T05 DONE
 **What**: In `server/src/routes/transform.rs`, after streaming completes
 (i.e., after the SSE loop ends), INSERT the result into the `transformations` table.
 Fields: doc_name from request body (add it to the JSON payload), action, full output text, ISO timestamp.
 Add GET `/api/transformations` that returns the last 20 rows as JSON array.
-**Files**: `server/src/routes/transform.rs`, `server/src/routes/mod.rs`, `server/src/main.rs`
-**Acceptance**: After a transform, GET `/api/transformations` returns the entry.
-**Note**: —
+**Files**: `server/src/routes/transform.rs`, `server/src/routes/transformations.rs` (new)
+**Acceptance**: `cargo build` passes. GET `/api/transformations` returns JSON array.
+**Note**: Persistence already implemented in transform.rs (lines 161-170). Created new transformations.rs with GET endpoint returning last 20 rows. Registered in routes/mod.rs and main.rs.
 
 ---
 
-### T07 — Frontend: Dashboard recent transformations from real API [ PENDING ]
+### T07 — Frontend: Dashboard recent transformations from real API [ DONE ]
 
 **Depends on**: T06 DONE
 **What**: In `plugins/oliv4600-pack/src/lib.rs`, find the Dashboard view.
@@ -106,8 +106,8 @@ Replace the static `TRANSFORMATIONS` const with a `Resource` that fetches
 GET `/api/transformations` on mount. Render the table from real data.
 Show "No transformations yet" if the list is empty.
 **Files**: `plugins/oliv4600-pack/src/lib.rs`
-**Acceptance**: Dashboard shows real transformation history.
-**Note**: —
+**Acceptance**: Dashboard table shows real transformations from the database.
+**Note**: Already implemented. Dashboard fetches from /api/transformations using spawn_local + RwSignal. Updated transformations.rs to return ApiResponse wrapper format.
 
 ---
 

@@ -1,3 +1,4 @@
+pub mod analyse;
 pub mod browse;
 pub mod chat;
 pub mod download;
@@ -10,4 +11,5 @@ pub mod render;
 pub mod settings;
 pub mod static_files;
 pub mod transform;
+pub mod transformations;
 pub mod upload;

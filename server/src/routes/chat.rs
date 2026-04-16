@@ -62,6 +62,7 @@ async fn chat_stream(
         .or_else(|| if snapshot.llm_model.is_empty() { None } else { Some(snapshot.llm_model.clone()) })
         .unwrap_or_else(|| "llama3".into());
     let api_key = snapshot.api_key.clone();
+    let db = state.db.clone();
 
     tokio::spawn(async move {
         let mut messages = req.messages.clone();
@@ -161,6 +162,24 @@ async fn chat_stream(
         }
 
         let _ = tx.send("event: done\ndata: {}\n\n".into()).await;
+
+        // ── T08: Log chat event to audit_log ────────────────────────────────────
+        if let Some(user_msg) = req.messages.iter()
+            .find(|m| m["role"].as_str() == Some("user"))
+            .and_then(|m| m["content"].as_str())
+        {
+            let snippet = if user_msg.len() > 100 {
+                format!("{}...", &user_msg[..100])
+            } else {
+                user_msg.to_string()
+            };
+            let payload = serde_json::json!({
+                "model": model,
+                "user_message": snippet,
+                "message_count": req.messages.len(),
+            }).to_string();
+            let _ = db.log_event("chat", &payload);
+        }
     });
 
     let stream = ReceiverStream::new(rx).map(|s| Ok::<_, std::convert::Infallible>(s));

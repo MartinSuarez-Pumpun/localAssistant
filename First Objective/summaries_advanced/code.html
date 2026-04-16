@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                "colors": {
+                    "on-tertiary-container": "#fa813a",
+                    "surface": "#f8f9fa",
+                    "primary-fixed-dim": "#9ecaff",
+                    "background": "#f8f9fa",
+                    "on-primary-fixed-variant": "#00497c",
+                    "surface-bright": "#f8f9fa",
+                    "on-primary": "#ffffff",
+                    "surface-container": "#edeeef",
+                    "tertiary-container": "#622700",
+                    "on-surface-variant": "#43474e",
+                    "on-tertiary": "#ffffff",
+                    "secondary-fixed-dim": "#abc9f2",
+                    "surface-container-low": "#f3f4f5",
+                    "outline": "#73777f",
+                    "surface-container-highest": "#e1e3e4",
+                    "surface-container-high": "#e7e8e9",
+                    "on-secondary-container": "#3f5b7f",
+                    "primary": "#002542",
+                    "on-tertiary-fixed": "#341100",
+                    "on-secondary-fixed": "#001c38",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "surface-variant": "#e1e3e4",
+                    "tertiary": "#401700",
+                    "error": "#ba1a1a",
+                    "on-error-container": "#93000a",
+                    "outline-variant": "#c3c6cf",
+                    "inverse-surface": "#2e3132",
+                    "on-surface": "#191c1d",
+                    "on-error": "#ffffff",
+                    "on-secondary-fixed-variant": "#2b486b",
+                    "secondary-container": "#b6d4fe",
+                    "tertiary-fixed-dim": "#ffb691",
+                    "on-primary-fixed": "#001d36",
+                    "secondary": "#436084",
+                    "on-tertiary-fixed-variant": "#783100",
+                    "primary-fixed": "#d1e4ff",
+                    "inverse-on-surface": "#f0f1f2",
+                    "inverse-primary": "#9ecaff",
+                    "on-primary-container": "#66a6ea",
+                    "tertiary-fixed": "#ffdbcb",
+                    "primary-container": "#003b65",
+                    "on-background": "#191c1d",
+                    "surface-dim": "#d9dadb",
+                    "secondary-fixed": "#d2e4ff",
+                    "error-container": "#ffdad6",
+                    "surface-tint": "#0b61a1"
+                },
+                "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+                },
+                "fontFamily": {
+                    "headline": ["Inter"],
+                    "body": ["Newsreader"],
+                    "label": ["Inter"]
+                }
+            },
+        },
+    }
+</script>
+<style>
+    .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(20px);
+    }
+    input[type="range"] {
+        -webkit-appearance: none;
+        height: 6px;
+        border-radius: 3px;
+        background: #e1e3e4;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #002542;
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+</style>
+</head>
+<body class="bg-surface text-on-surface font-headline antialiased">
+
+<!-- SideNavBar -->
+<aside class="bg-[#002542] h-screen w-[280px] fixed left-0 top-0 flex flex-col py-8 px-4 z-50">
+    <div class="mb-10 px-2">
+        <h1 class="text-2xl font-black tracking-tighter text-white font-['Inter']">OLIV4600</h1>
+        <p class="font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-[#66a6ea]">Sovereign Intelligence</p>
+    </div>
+    <nav class="flex-1 space-y-1">
+        <div class="mb-6">
+            <span class="px-2 mb-2 block font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-slate-400">Main</span>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors" href="#">
+                <span class="material-symbols-outlined text-[20px]">folder_open</span>
+                <span class="text-sm font-semibold">Projects</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors" href="#">
+                <span class="material-symbols-outlined text-[20px]">edit_note</span>
+                <span class="text-sm font-semibold">Templates</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors" href="#">
+                <span class="material-symbols-outlined text-[20px]">inventory_2</span>
+                <span class="text-sm font-semibold">Library</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#001b30] text-[#66a6ea] border-r-2 border-[#66a6ea] transition-colors" href="#">
+                <span class="material-symbols-outlined text-[20px]">memory</span>
+                <span class="text-sm font-semibold">AI Engine</span>
+            </a>
+        </div>
+        <div class="mb-6">
+            <span class="px-2 mb-2 block font-['Inter'] tracking-tight uppercase text-[11px] font-bold text-slate-400">Tools</span>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#00335c] text-white transition-colors" href="#">
+                <span class="material-symbols-outlined text-[20px]">summarize</span>
+                <span class="text-sm font-semibold">Summaries</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors" href="#">
+                <span class="material-symbols-outlined text-[20px]">campaign</span>
+                <span class="text-sm font-semibold">Derived Content</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#00335c] transition-colors" href="#">
+                <span class="material-symbols-outlined text-[20px]">tune</span>
+                <span class="text-sm font-semibold">Tone & Style</span>
+            </a>
+        </div>
+    </nav>
+    <div class="mt-auto pt-6 space-y-4">
+        <button class="w-full bg-primary-container text-on-primary-container py-3 px-4 rounded-lg font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+            <span class="material-symbols-outlined text-[18px]">add</span>
+            New Document
+        </button>
+        <div class="flex flex-col gap-2 border-t border-slate-700/50 pt-4">
+            <div class="flex items-center gap-3 px-2 py-1.5">
+                <span class="material-symbols-outlined text-[18px] text-[#66a6ea]">shield</span>
+                <span class="font-['Inter'] tracking-tight uppercase text-[10px] font-bold text-[#66a6ea]">System Offline</span>
+            </div>
+            <div class="flex items-center gap-3 px-2 py-1.5">
+                <div class="relative">
+                    <span class="material-symbols-outlined text-[18px] text-green-400">bolt</span>
+                    <span class="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                </div>
+                <span class="font-['Inter'] tracking-tight uppercase text-[10px] font-bold text-white">Qwen 3.5 Active</span>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main class="ml-[280px] min-h-screen">
+    <!-- TopAppBar -->
+    <header class="bg-white/85 backdrop-blur-xl flex justify-between items-center h-16 px-8 sticky top-0 z-40 border-b border-slate-200/50 shadow-sm">
+        <div class="flex items-center gap-8">
+            <nav class="flex gap-6">
+                <a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Editor</a>
+                <a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Analysis</a>
+                <a class="font-['Newsreader'] italic text-lg text-[#C45911] border-b-2 border-[#C45911] pb-1" href="#">Summarize</a>
+                <a class="font-['Newsreader'] italic text-lg text-slate-500 hover:text-[#002542] transition-all" href="#">Audit</a>
+            </nav>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex gap-2 mr-4 border-r border-slate-200 pr-4">
+                <button class="p-2 text-slate-500 hover:bg-surface-container rounded-lg transition-colors">
+                    <span class="material-symbols-outlined">shield</span>
+                </button>
+                <button class="p-2 text-slate-500 hover:bg-surface-container rounded-lg transition-colors">
+                    <span class="material-symbols-outlined">history</span>
+                </button>
+                <button class="p-2 text-slate-500 hover:bg-surface-container rounded-lg transition-colors">
+                    <span class="material-symbols-outlined">settings</span>
+                </button>
+            </div>
+            <button class="px-4 py-2 bg-primary text-white rounded-lg font-bold text-sm active:opacity-70 transition-all">
+                Generate Summary
+            </button>
+        </div>
+    </header>
+
+    <section class="p-8 max-w-7xl mx-auto">
+        <!-- Page Header -->
+        <div class="mb-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="font-headline font-black text-3xl text-primary tracking-tighter">Advanced Summaries</h1>
+                    <p class="font-body italic text-on-surface-variant mt-1">Multi-format summarization with granular control</p>
+                </div>
+                <div class="flex items-center gap-2 px-4 py-2 bg-primary/5 rounded-lg border border-primary/10">
+                    <span class="material-symbols-outlined text-primary text-[18px]">description</span>
+                    <span class="text-sm font-semibold text-primary">Q4_Budget_Review_V2.pdf</span>
+                    <span class="text-xs text-on-surface-variant ml-2">4,328 words</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-12 gap-8">
+            <!-- Left Panel: Summary Type Selection -->
+            <div class="col-span-4 space-y-6">
+                <!-- Summary Types -->
+                <div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-200/50">
+                    <h3 class="font-headline font-bold text-sm uppercase tracking-tight text-primary mb-4">Summary Type</h3>
+                    
+                    <div class="space-y-3">
+                        <label class="flex items-start gap-4 p-4 rounded-lg border-2 border-primary bg-primary/5 cursor-pointer transition-all">
+                            <input type="radio" name="summary-type" checked class="mt-1 accent-primary">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-primary text-[20px]">workspace_premium</span>
+                                    <span class="font-bold text-primary">Executive Summary</span>
+                                </div>
+                                <p class="text-xs text-on-surface-variant mt-1">High-level overview for leadership and decision-makers</p>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-4 p-4 rounded-lg border border-outline-variant hover:border-primary/50 cursor-pointer transition-all">
+                            <input type="radio" name="summary-type" class="mt-1 accent-primary">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">engineering</span>
+                                    <span class="font-bold text-on-surface">Technical Summary</span>
+                                </div>
+                                <p class="text-xs text-on-surface-variant mt-1">Detailed technical analysis preserving methodology</p>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-4 p-4 rounded-lg border border-outline-variant hover:border-primary/50 cursor-pointer transition-all">
+                            <input type="radio" name="summary-type" class="mt-1 accent-primary">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">groups</span>
+                                    <span class="font-bold text-on-surface">Public Summary</span>
+                                </div>
+                                <p class="text-xs text-on-surface-variant mt-1">Accessible language for general audiences</p>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-4 p-4 rounded-lg border border-outline-variant hover:border-primary/50 cursor-pointer transition-all">
+                            <input type="radio" name="summary-type" class="mt-1 accent-primary">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">format_list_bulleted</span>
+                                    <span class="font-bold text-on-surface">Key Points</span>
+                                </div>
+                                <p class="text-xs text-on-surface-variant mt-1">Bullet-point extraction of main takeaways</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Length Control -->
+                <div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-200/50">
+                    <h3 class="font-headline font-bold text-sm uppercase tracking-tight text-primary mb-4">Output Length</h3>
+                    
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-on-surface-variant">Target words</span>
+                            <span class="text-2xl font-black text-primary">250</span>
+                        </div>
+                        <input type="range" min="50" max="500" value="250" class="w-full">
+                        <div class="flex justify-between text-xs text-on-surface-variant">
+                            <span>50 words</span>
+                            <span>500 words</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-4 border-t border-outline-variant">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-on-surface-variant">Compression ratio</span>
+                            <span class="text-sm font-bold text-primary">17:1</span>
+                        </div>
+                        <div class="w-full bg-surface-container-high rounded-full h-2 mt-2">
+                            <div class="bg-primary h-2 rounded-full" style="width: 6%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Target Audience -->
+                <div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-200/50">
+                    <h3 class="font-headline font-bold text-sm uppercase tracking-tight text-primary mb-4">Target Audience</h3>
+                    <select class="w-full p-3 rounded-lg border border-outline-variant bg-white text-sm focus:ring-2 focus:ring-primary focus:border-primary">
+                        <option>C-Suite / Board Members</option>
+                        <option>Department Heads</option>
+                        <option>Technical Staff</option>
+                        <option>External Stakeholders</option>
+                        <option>General Public</option>
+                        <option>Media / Press</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Right Panel: Preview -->
+            <div class="col-span-8 space-y-6">
+                <!-- Preview Card -->
+                <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-slate-200/50 overflow-hidden">
+                    <div class="bg-primary/5 px-6 py-4 border-b border-slate-200/50 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-primary">auto_awesome</span>
+                            <span class="font-bold text-primary">Generated Preview</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">Ready</span>
+                            <button class="p-1.5 hover:bg-surface-container rounded-lg text-primary">
+                                <span class="material-symbols-outlined text-[18px]">refresh</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="p-6">
+                        <div class="prose prose-sm max-w-none">
+                            <h2 class="font-body italic text-xl text-primary mb-4">Executive Summary: Q4 Budget Review</h2>
+                            
+                            <p class="text-on-surface leading-relaxed mb-4">
+                                The Q4 2026 budget analysis reveals a <strong>12.3% increase in operational efficiency</strong> compared to the previous quarter, driven primarily by the successful implementation of automated procurement systems and strategic vendor consolidation.
+                            </p>
+                            
+                            <p class="text-on-surface leading-relaxed mb-4">
+                                Key financial indicators demonstrate robust performance across all departments, with the Technology division achieving a <strong>€2.4M cost reduction</strong> through infrastructure optimization. The Human Resources allocation has been adjusted to accommodate the new hybrid workforce model, resulting in a 8% decrease in facility-related expenses.
+                            </p>
+                            
+                            <p class="text-on-surface leading-relaxed mb-4">
+                                Strategic recommendations for Q1 2027 include accelerating the digital transformation initiative, with projected ROI of 340% over 18 months. The committee advises maintaining current reserve levels while exploring sustainable investment opportunities in emerging markets.
+                            </p>
+
+                            <div class="mt-6 p-4 bg-surface-container-low rounded-lg border-l-4 border-primary">
+                                <p class="text-sm font-semibold text-primary mb-2">Key Takeaways:</p>
+                                <ul class="text-sm text-on-surface-variant space-y-1">
+                                    <li>• Operational efficiency up 12.3% QoQ</li>
+                                    <li>• €2.4M saved through tech optimization</li>
+                                    <li>• Hybrid model reduces facility costs by 8%</li>
+                                    <li>• Digital transformation ROI projected at 340%</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-surface-container-low px-6 py-4 border-t border-slate-200/50 flex items-center justify-between">
+                        <div class="flex items-center gap-6 text-xs text-on-surface-variant">
+                            <span><strong class="text-primary">247</strong> words</span>
+                            <span><strong class="text-primary">1.2</strong> min read</span>
+                            <span><strong class="text-primary">94%</strong> source coverage</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button class="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-container rounded-lg transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">content_copy</span>
+                                Copy
+                            </button>
+                            <button class="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-container rounded-lg transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">download</span>
+                                Export
+                            </button>
+                            <button class="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">check</span>
+                                Accept
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparison View -->
+                <div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-200/50">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-headline font-bold text-sm uppercase tracking-tight text-primary">Quick Compare</h3>
+                        <button class="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1 hover:underline">
+                            Generate All <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-4 gap-4">
+                        <div class="p-4 rounded-lg border-2 border-primary bg-primary/5">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="material-symbols-outlined text-primary text-[16px]">workspace_premium</span>
+                                <span class="text-xs font-bold text-primary uppercase">Executive</span>
+                            </div>
+                            <p class="text-[11px] text-on-surface-variant line-clamp-3">The Q4 2026 budget analysis reveals a 12.3% increase in operational efficiency...</p>
+                            <span class="text-[10px] text-primary font-semibold mt-2 block">247 words</span>
+                        </div>
+                        
+                        <div class="p-4 rounded-lg border border-outline-variant hover:border-primary/50 transition-colors cursor-pointer">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="material-symbols-outlined text-on-surface-variant text-[16px]">engineering</span>
+                                <span class="text-xs font-bold text-on-surface-variant uppercase">Technical</span>
+                            </div>
+                            <p class="text-[11px] text-on-surface-variant line-clamp-3 opacity-50">Click to generate technical summary variant...</p>
+                            <span class="text-[10px] text-on-surface-variant font-semibold mt-2 block">~350 words</span>
+                        </div>
+                        
+                        <div class="p-4 rounded-lg border border-outline-variant hover:border-primary/50 transition-colors cursor-pointer">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="material-symbols-outlined text-on-surface-variant text-[16px]">groups</span>
+                                <span class="text-xs font-bold text-on-surface-variant uppercase">Public</span>
+                            </div>
+                            <p class="text-[11px] text-on-surface-variant line-clamp-3 opacity-50">Click to generate public-facing summary...</p>
+                            <span class="text-[10px] text-on-surface-variant font-semibold mt-2 block">~200 words</span>
+                        </div>
+                        
+                        <div class="p-4 rounded-lg border border-outline-variant hover:border-primary/50 transition-colors cursor-pointer">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="material-symbols-outlined text-on-surface-variant text-[16px]">format_list_bulleted</span>
+                                <span class="text-xs font-bold text-on-surface-variant uppercase">Bullets</span>
+                            </div>
+                            <p class="text-[11px] text-on-surface-variant line-clamp-3 opacity-50">Click to generate bullet-point extraction...</p>
+                            <span class="text-[10px] text-on-surface-variant font-semibold mt-2 block">~10 points</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="p-8 border-t border-slate-200 mt-12">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-8">
+                <div class="flex flex-col">
+                    <span class="font-label text-[10px] font-bold uppercase tracking-widest text-slate-400">Computational Engine</span>
+                    <span class="font-headline font-bold text-primary">Qwen 3.5 — 32B Instruct</span>
+                </div>
+                <div class="h-8 w-[1px] bg-slate-200 hidden md:block"></div>
+                <div class="flex flex-col">
+                    <span class="font-label text-[10px] font-bold uppercase tracking-widest text-slate-400">Privacy Status</span>
+                    <span class="font-headline font-bold text-primary flex items-center gap-2">
+                        <span class="w-2 h-2 bg-green-500 rounded-full"></span> 
+                        100% Air-Gapped
+                    </span>
+                </div>
+            </div>
+            <div class="flex gap-4">
+                <button class="px-4 py-2 text-primary border border-primary rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-primary hover:text-white transition-all">Export Audit Log</button>
+            </div>
+        </div>
+    </footer>
+</main>
+
+</body></html>

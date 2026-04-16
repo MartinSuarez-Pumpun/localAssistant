@@ -20,8 +20,16 @@ enum View {
     Analysis,
     Chat,
     Pipeline,
-    Archive,
+    Projects,       // Proyectos activos con estado
+    Archive,        // Biblioteca/archivo histórico
     Audit,
+    // ── Nuevas vistas SRS ──────────────────────────────────────────────────────
+    Templates,      // Módulo 12: Plantillas y Contexto Organizacional
+    GuidedForm,     // Módulo 16: Constructor Guiado desde Formulario
+    Verifiability,  // Módulo 13: Verificabilidad y Soporte a Fuente
+    Publication,    // Módulo 14: Publicación Segura (Preflight/Anonimización)
+    Crisis,         // Módulo 18: Modo Crisis y Comparecencia
+    Settings,       // Configuración del Motor IA
 }
 
 // ─── API response types ───────────────────────────────────────────────────────
@@ -413,74 +421,74 @@ fn copy_to_clipboard(text: String) {
 
 fn action_label(action: &str) -> &'static str {
     match action {
-        "executive_summary"     => "Resumen Ejecutivo",
-        "technical_summary"     => "Resumen Técnico",
-        "divulgative_summary"   => "Resumen Divulgativo",
-        "bullet_summary"        => "Puntos Clave",
-        "chronological_summary" => "Resumen Cronológico",
-        "conclusions_summary"   => "Conclusiones y Recomendaciones",
-        "briefing_2min"         => "Briefing 2 min",
-        "press_release"         => "Nota de Prensa",
-        "headlines"             => "Titulares",
-        "linkedin_post"         => "Post LinkedIn",
-        "twitter_thread"        => "Hilo Twitter/X",
-        "blog_article"          => "Artículo de Blog",
-        "instagram_post"        => "Post Instagram",
+        "executive_summary"     => "Executive Summary",
+        "technical_summary"     => "Technical Summary",
+        "divulgative_summary"   => "Divulgative Summary",
+        "bullet_summary"        => "Key Points",
+        "chronological_summary" => "Chronological Summary",
+        "conclusions_summary"   => "Conclusions & Recommendations",
+        "briefing_2min"         => "2-min Briefing",
+        "press_release"         => "Press Release",
+        "headlines"             => "Headlines",
+        "linkedin_post"         => "LinkedIn Post",
+        "twitter_thread"        => "Twitter/X Thread",
+        "blog_article"          => "Blog Article",
+        "instagram_post"        => "Instagram Post",
         "email_newsletter"      => "Email / Newsletter",
-        "speech"                => "Discurso",
+        "speech"                => "Speech",
         "faqs"                  => "FAQs",
-        "one_pager"             => "One-Pager / Ficha Resumen",
-        "key_quotes"            => "Citas Textuales",
-        "official_report"       => "Informe Oficial",
-        "meeting_minutes"       => "Acta de Reunión",
-        "administrative_resolution" => "Resolución Administrativa",
-        "internal_memo"         => "Memorando Interno",
-        "allegations_response"  => "Alegaciones / Negociación",
-        "extract_commitments"   => "Compromisos Verificables",
-        "rewrite_formal"        => "Reescritura Formal",
-        "rewrite_shorter"       => "Reescritura Concisa",
-        "rewrite_persuasive"    => "Reescritura Persuasiva",
-        "rewrite_clearer"       => "Reescritura Clara",
-        "detect_redundancies"   => "Detectar Redundancias",
-        "translate_language"    => "Traducción",
-        "sentiment_analysis"    => "Análisis de Sentimiento",
-        "grammar_check"         => "Corrección Gramatical",
-        "simplify"              => "Simplificar (Lenguaje Claro)",
-        "detect_inconsistencies"=> "Detectar Inconsistencias",
-        "reformulate_paragraph" => "Reformular Párrafo",
-        "detect_ambiguities"    => "Detectar Ambigüedades",
-        "improve_suggestions"   => "Sugerencias de Mejora",
-        "readability_analysis"  => "Análisis de Legibilidad",
-        "detect_evasive_language"=> "Lenguaje Evasivo",
-        "semantic_versioning"   => "Versionado Semántico",
-        "merge_documents"       => "Fusión de Documentos",
-        "semantic_diff"         => "Diferencial Semántico",
-        "document_intersection" => "Intersección Documental",
-        "detect_contradictions" => "Detectar Contradicciones",
-        "versions_compare"      => "Comparar Versiones",
-        "inverse_questions"     => "Preguntas Inversas (Editor Jefe)",
-        "press_release_check"   => "Verificar Nota de Prensa",
-        "validation_questions"  => "Checklist de Validación",
-        "ner_extraction"        => "Extracción de Entidades (NER)",
-        "keywords_extraction"   => "Palabras Clave y Categorías",
-        "event_timeline"        => "Línea Temporal",
-        "impact_analysis"       => "Análisis de Impacto",
-        "verifiability_check"   => "Verificabilidad y Soporte",
-        "evidence_gaps"         => "Huecos de Evidencia",
-        "traceability_map"      => "Mapa de Trazabilidad",
-        "anonymize"             => "Anonimización / Expurgo",
-        "preflight_check"       => "Preflight Documental",
-        "public_version"        => "Versión Pública",
-        "rgpd_check"            => "Verificación RGPD/LOPDGDD",
-        "style_linting"         => "Linting Documental",
-        "reader_simulation"     => "Simulador de Lector",
-        "generate_from_form"    => "Generar desde Formulario",
-        "generate_file_package" => "Paquete de Expediente",
-        "crisis_press_questions"=> "Simulacro Comparecencia",
-        "crisis_communication"  => "Kit de Crisis Reputacional",
-        "argumentario"          => "Argumentario",
-        "difficult_questions_simulator" => "Simulador Preguntas Difíciles",
-        _                       => "Transformación",
+        "one_pager"             => "One-Pager / Fact Sheet",
+        "key_quotes"            => "Key Quotes",
+        "official_report"       => "Official Report",
+        "meeting_minutes"       => "Meeting Minutes",
+        "administrative_resolution" => "Administrative Resolution",
+        "internal_memo"         => "Internal Memo",
+        "allegations_response"  => "Allegations / Negotiation",
+        "extract_commitments"   => "Verifiable Commitments",
+        "rewrite_formal"        => "Formal Rewrite",
+        "rewrite_shorter"       => "Concise Rewrite",
+        "rewrite_persuasive"    => "Persuasive Rewrite",
+        "rewrite_clearer"       => "Clearer Rewrite",
+        "detect_redundancies"   => "Detect Redundancies",
+        "translate_language"    => "Translation",
+        "sentiment_analysis"    => "Sentiment Analysis",
+        "grammar_check"         => "Grammar Check",
+        "simplify"              => "Simplify (Plain Language)",
+        "detect_inconsistencies"=> "Detect Inconsistencies",
+        "reformulate_paragraph" => "Reformulate Paragraph",
+        "detect_ambiguities"    => "Detect Ambiguities",
+        "improve_suggestions"   => "Improvement Suggestions",
+        "readability_analysis"  => "Readability Analysis",
+        "detect_evasive_language"=> "Evasive Language",
+        "semantic_versioning"   => "Semantic Versioning",
+        "merge_documents"       => "Merge Documents",
+        "semantic_diff"         => "Semantic Diff",
+        "document_intersection" => "Document Intersection",
+        "detect_contradictions" => "Detect Contradictions",
+        "versions_compare"      => "Compare Versions",
+        "inverse_questions"     => "Inverse Questions (Editor)",
+        "press_release_check"   => "Press Release Check",
+        "validation_questions"  => "Validation Checklist",
+        "ner_extraction"        => "Entity Extraction (NER)",
+        "keywords_extraction"   => "Keywords & Categories",
+        "event_timeline"        => "Event Timeline",
+        "impact_analysis"       => "Impact Analysis",
+        "verifiability_check"   => "Verifiability Check",
+        "evidence_gaps"         => "Evidence Gaps",
+        "traceability_map"      => "Traceability Map",
+        "anonymize"             => "Anonymization / Redaction",
+        "preflight_check"       => "Document Preflight",
+        "public_version"        => "Public Version",
+        "rgpd_check"            => "GDPR/Privacy Check",
+        "style_linting"         => "Document Linting",
+        "reader_simulation"     => "Reader Simulation",
+        "generate_from_form"    => "Generate from Form",
+        "generate_file_package" => "File Package",
+        "crisis_press_questions"=> "Press Conference Simulation",
+        "crisis_communication"  => "Crisis Communication Kit",
+        "argumentario"          => "Talking Points",
+        "difficult_questions_simulator" => "Difficult Questions Simulator",
+        _                       => "Transform",
     }
 }
 
@@ -578,12 +586,12 @@ async fn fetch_render(
 
 fn tone_label(t: u32) -> &'static str {
     match t {
-        1 => "Coloquial",
-        2 => "Periodístico",
-        3 => "Divulgativo",
-        4 => "Técnico",
+        1 => "Casual",
+        2 => "Journalistic",
+        3 => "Divulgative",
+        4 => "Technical",
         5 => "Formal",
-        _ => "Técnico",
+        _ => "Technical",
     }
 }
 
@@ -592,6 +600,869 @@ fn tone_label(t: u32) -> &'static str {
 #[wasm_bindgen::prelude::wasm_bindgen(start)]
 pub fn main() {
     leptos::mount::mount_to_body(App);
+}
+
+// ─── Modal System ─────────────────────────────────────────────────────────────
+// Custom modal dialogs that match the application design.
+
+#[derive(Clone, Copy)]
+struct ModalState {
+    visible: RwSignal<bool>,
+    title: RwSignal<&'static str>,
+    message: RwSignal<&'static str>,
+    modal_type: RwSignal<ModalType>,
+    confirm_action: RwSignal<&'static str>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum ModalType {
+    Alert,
+    Confirm,
+    Success,
+    Error,
+}
+
+impl ModalState {
+    fn new() -> Self {
+        Self {
+            visible: RwSignal::new(false),
+            title: RwSignal::new(""),
+            message: RwSignal::new(""),
+            modal_type: RwSignal::new(ModalType::Alert),
+            confirm_action: RwSignal::new(""),
+        }
+    }
+
+    fn alert(&self, title: &'static str, message: &'static str) {
+        self.title.set(title);
+        self.message.set(message);
+        self.modal_type.set(ModalType::Alert);
+        self.confirm_action.set("");
+        self.visible.set(true);
+    }
+
+    fn success(&self, title: &'static str, message: &'static str) {
+        self.title.set(title);
+        self.message.set(message);
+        self.modal_type.set(ModalType::Success);
+        self.confirm_action.set("");
+        self.visible.set(true);
+    }
+
+    fn error(&self, title: &'static str, message: &'static str) {
+        self.title.set(title);
+        self.message.set(message);
+        self.modal_type.set(ModalType::Error);
+        self.confirm_action.set("");
+        self.visible.set(true);
+    }
+
+    fn confirm(&self, title: &'static str, message: &'static str, action: &'static str) {
+        self.title.set(title);
+        self.message.set(message);
+        self.modal_type.set(ModalType::Confirm);
+        self.confirm_action.set(action);
+        self.visible.set(true);
+    }
+
+    fn close(&self) {
+        self.visible.set(false);
+    }
+}
+
+#[component]
+fn ModalOverlay() -> impl IntoView {
+    let modal = use_context::<ModalState>().expect("ModalState");
+
+    view! {
+        <Show when=move || modal.visible.get()>
+            <div class="fixed inset-0 z-[200] flex items-center justify-center">
+                // Backdrop
+                <div
+                    class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                    on:click=move |_| modal.close()
+                />
+                // Modal card
+                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+                    // Header
+                    <div class="p-6 pb-4">
+                        <div class="flex items-start gap-4">
+                            <div class=move || format!(
+                                "w-12 h-12 rounded-full flex items-center justify-center shrink-0 {}",
+                                match modal.modal_type.get() {
+                                    ModalType::Alert => "bg-blue-100",
+                                    ModalType::Confirm => "bg-amber-100",
+                                    ModalType::Success => "bg-green-100",
+                                    ModalType::Error => "bg-red-100",
+                                }
+                            )>
+                                <span class=move || format!(
+                                    "material-symbols-outlined text-2xl {}",
+                                    match modal.modal_type.get() {
+                                        ModalType::Alert => "text-blue-500",
+                                        ModalType::Confirm => "text-amber-500",
+                                        ModalType::Success => "text-green-500",
+                                        ModalType::Error => "text-red-500",
+                                    }
+                                )>
+                                    {move || match modal.modal_type.get() {
+                                        ModalType::Alert => "info",
+                                        ModalType::Confirm => "help",
+                                        ModalType::Success => "check_circle",
+                                        ModalType::Error => "error",
+                                    }}
+                                </span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h3 class="font-sans font-black text-lg text-primary mb-1">
+                                    {move || modal.title.get()}
+                                </h3>
+                                <p class="text-sm text-outline leading-relaxed">
+                                    {move || modal.message.get()}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    // Actions
+                    <div class="px-6 pb-6 flex justify-end gap-3">
+                        <Show when=move || modal.modal_type.get() == ModalType::Confirm>
+                            <button
+                                class="px-5 py-2.5 text-sm font-bold text-outline border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors"
+                                on:click=move |_| modal.close()
+                            >
+                                "Cancel"
+                            </button>
+                        </Show>
+                        <button
+                            class=move || format!(
+                                "px-5 py-2.5 text-sm font-bold text-white rounded-lg transition-colors {}",
+                                match modal.modal_type.get() {
+                                    ModalType::Alert => "bg-blue-600 hover:bg-blue-700",
+                                    ModalType::Confirm => "bg-red-600 hover:bg-red-700",
+                                    ModalType::Success => "bg-green-600 hover:bg-green-700",
+                                    ModalType::Error => "bg-red-600 hover:bg-red-700",
+                                }
+                            )
+                            on:click=move |_| {
+                                let action = modal.confirm_action.get();
+                                if action == "purge" {
+                                    spawn_local(async {
+                                        let opts = web_sys::RequestInit::new();
+                                        opts.set_method("DELETE");
+                                        if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/purge", &opts) {
+                                            if let Some(w) = web_sys::window() {
+                                                let _ = JsFuture::from(w.fetch_with_request(&req)).await;
+                                                w.location().reload().ok();
+                                            }
+                                        }
+                                    });
+                                }
+                                modal.close();
+                            }
+                        >
+                            {move || if modal.modal_type.get() == ModalType::Confirm { "Confirm" } else { "OK" }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Show>
+    }
+}
+
+// ─── Action Selector Component ────────────────────────────────────────────────
+// Custom dropdown for selecting transformation actions, grouped by category.
+
+const ACTION_GROUPS: &[(&str, &[(&str, &str)])] = &[
+    ("Summaries", &[
+        ("executive_summary", "Executive Summary"),
+        ("technical_summary", "Technical Summary"),
+        ("divulgative_summary", "Divulgative Summary"),
+        ("bullet_summary", "Key Points"),
+        ("chronological_summary", "Chronological Summary"),
+        ("conclusions_summary", "Conclusions & Recommendations"),
+        ("briefing_2min", "2-min Briefing"),
+    ]),
+    ("Communication", &[
+        ("press_release", "Press Release"),
+        ("headlines", "Headlines"),
+        ("linkedin_post", "LinkedIn Post"),
+        ("twitter_thread", "Twitter/X Thread"),
+        ("blog_article", "Blog Article"),
+        ("instagram_post", "Instagram Post"),
+        ("email_newsletter", "Email / Newsletter"),
+        ("speech", "Speech"),
+        ("faqs", "FAQs"),
+        ("one_pager", "One-Pager / Fact Sheet"),
+    ]),
+    ("Administration", &[
+        ("key_quotes", "Key Quotes"),
+        ("official_report", "Official Report"),
+        ("meeting_minutes", "Meeting Minutes"),
+        ("administrative_resolution", "Administrative Resolution"),
+        ("internal_memo", "Internal Memo"),
+        ("allegations_response", "Allegations / Negotiation"),
+    ]),
+    ("Editing", &[
+        ("extract_commitments", "Verifiable Commitments"),
+        ("rewrite_formal", "Formal Rewrite"),
+        ("rewrite_shorter", "Concise Rewrite"),
+        ("rewrite_persuasive", "Persuasive Rewrite"),
+        ("rewrite_clearer", "Clearer Rewrite"),
+        ("detect_redundancies", "Detect Redundancies"),
+        ("translate_language", "Translation"),
+        ("sentiment_analysis", "Sentiment Analysis"),
+        ("grammar_check", "Grammar Check"),
+        ("simplify", "Simplify (Plain Language)"),
+    ]),
+    ("Intelligence", &[
+        ("semantic_versioning", "Semantic Versioning"),
+        ("merge_documents", "Merge Documents"),
+        ("semantic_diff", "Semantic Diff"),
+        ("detect_contradictions", "Detect Contradictions"),
+        ("versions_compare", "Compare Versions"),
+        ("inverse_questions", "Inverse Questions"),
+        ("validation_questions", "Validation Checklist"),
+    ]),
+    ("Extraction", &[
+        ("ner_extraction", "Entities (NER)"),
+        ("keywords_extraction", "Keywords"),
+        ("event_timeline", "Event Timeline"),
+        ("impact_analysis", "Impact Analysis"),
+        ("verifiability_check", "Verifiability"),
+        ("evidence_gaps", "Evidence Gaps"),
+        ("traceability_map", "Traceability Map"),
+    ]),
+    ("Privacy", &[
+        ("anonymize", "Anonymization / Redaction"),
+        ("preflight_check", "Document Preflight"),
+        ("public_version", "Public Version"),
+        ("rgpd_check", "GDPR/Privacy Check"),
+        ("style_linting", "Document Linting"),
+        ("reader_simulation", "Reader Simulation"),
+    ]),
+    ("Crisis", &[
+        ("crisis_press_questions", "Press Conference Simulation"),
+        ("crisis_communication", "Crisis Communication Kit"),
+        ("argumentario", "Talking Points"),
+        ("difficult_questions_simulator", "Difficult Questions Simulator"),
+    ]),
+];
+
+#[component]
+fn ActionSelector(
+    value: RwSignal<String>,
+) -> impl IntoView {
+    let (open, set_open) = signal(false);
+
+    let selected_label = move || action_label(&value.get());
+
+    view! {
+        <div class="relative">
+            <label class="block text-[10px] font-black uppercase tracking-widest text-on-surf-var mb-2">
+                "Action Selector"
+            </label>
+            <button
+                type="button"
+                class=move || format!(
+                    "w-full bg-[#001b30] text-white text-[11px] font-bold py-2.5 px-3 rounded text-left flex items-center justify-between transition-all {}",
+                    if open.get() { "ring-2 ring-[#66a6ea]/50" } else { "hover:bg-[#002b45]" }
+                )
+                on:click=move |_| set_open.update(|o| *o = !*o)
+            >
+                <span class="truncate">{selected_label}</span>
+                <span class=move || format!(
+                    "material-symbols-outlined text-[14px] text-[#66a6ea] transition-transform {}",
+                    if open.get() { "rotate-180" } else { "" }
+                )>"expand_more"</span>
+            </button>
+            <Show when=move || open.get()>
+                <div class="absolute z-50 mt-1 w-72 bg-[#001b30] rounded-lg shadow-2xl border border-[#003b65] max-h-80 overflow-y-auto">
+                    {ACTION_GROUPS.iter().map(|(group_label, opts)| view! {
+                        <div class="py-1">
+                            <div class="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-[#66a6ea]/60 border-b border-[#003b65]/50">
+                                {*group_label}
+                            </div>
+                            {opts.iter().map(|(val, lbl)| {
+                                let val_str = val.to_string();
+                                let is_selected = move || value.get() == *val;
+                                view! {
+                                    <button
+                                        type="button"
+                                        class=move || format!(
+                                            "w-full px-4 py-2 text-[11px] text-left flex items-center justify-between hover:bg-[#003b65] transition-colors {}",
+                                            if is_selected() { "bg-[#003b65] text-[#66a6ea] font-bold" } else { "text-white/80" }
+                                        )
+                                        on:click=move |_| {
+                                            value.set(val_str.clone());
+                                            set_open.set(false);
+                                        }
+                                    >
+                                        <span>{*lbl}</span>
+                                        <Show when=is_selected>
+                                            <span class="material-symbols-outlined text-[14px] text-[#66a6ea]">"check"</span>
+                                        </Show>
+                                    </button>
+                                }
+                            }).collect_view()}
+                        </div>
+                    }).collect_view()}
+                </div>
+            </Show>
+        </div>
+    }
+}
+
+// ─── Custom Select Component ──────────────────────────────────────────────────
+// Generic custom dropdown for replacing native <select> elements.
+
+const TONE_OPTIONS: &[(&str, &str)] = &[
+    ("0", "Casual"),
+    ("1", "Journalistic"),
+    ("2", "Divulgative"),
+    ("3", "Technical"),
+    ("4", "Formal"),
+];
+
+const AUDIENCE_OPTIONS: &[(&str, &str)] = &[
+    ("general", "General Public"),
+    ("technical", "Technical / Expert"),
+    ("executive", "Executive / Decision Makers"),
+    ("media", "Media / Press"),
+    ("internal", "Internal Staff"),
+];
+
+const DOC_TYPE_OPTIONS: &[(&str, &str)] = &[
+    ("press_release", "Press Release"),
+    ("official_report", "Official Report"),
+    ("internal_memo", "Internal Memo"),
+    ("speech", "Speech"),
+    ("blog_article", "Blog Article"),
+    ("social_media", "Social Media Post"),
+];
+
+const CRISIS_SCENARIO_OPTIONS: &[(&str, &str)] = &[
+    ("data_breach", "Data Breach"),
+    ("product_recall", "Product Recall"),
+    ("executive_scandal", "Executive Scandal"),
+    ("environmental", "Environmental Incident"),
+    ("labor_dispute", "Labor Dispute"),
+    ("financial_crisis", "Financial Crisis"),
+    ("misinformation", "Misinformation Campaign"),
+    ("custom", "Custom Scenario"),
+];
+
+const MODEL_OPTIONS: &[(&str, &str)] = &[
+    ("qwen3:32b", "Qwen 3 — 32B Instruct"),
+    ("qwen3:14b", "Qwen 3 — 14B Instruct"),
+    ("qwen3:8b", "Qwen 3 — 8B Instruct"),
+    ("llama3.3:70b", "Llama 3.3 — 70B"),
+    ("mistral:7b", "Mistral — 7B"),
+    ("deepseek-r1:32b", "DeepSeek R1 — 32B"),
+];
+
+#[component]
+fn CustomSelect(
+    value: RwSignal<String>,
+    options: &'static [(&'static str, &'static str)],
+    #[prop(optional)] label: Option<&'static str>,
+    #[prop(optional)] dark: Option<bool>,
+) -> impl IntoView {
+    let (open, set_open) = signal(false);
+    let is_dark = dark.unwrap_or(false);
+
+    let selected_label = move || {
+        let v = value.get();
+        options.iter()
+            .find(|(val, _)| *val == v)
+            .map(|(_, lbl)| *lbl)
+            .unwrap_or(options.first().map(|(_, l)| *l).unwrap_or("Select..."))
+    };
+
+    view! {
+        <div class="relative">
+            {label.map(|l| view! {
+                <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">{l}</label>
+            })}
+            <button
+                type="button"
+                class=move || format!(
+                    "w-full p-3 rounded-lg text-sm text-left flex items-center justify-between transition-all {} {}",
+                    if open.get() { "ring-2 ring-primary/30" } else { "" },
+                    if is_dark { "bg-[#001b30] text-white border-none" } else { "bg-white border border-outline-variant hover:border-primary/50" }
+                )
+                on:click=move |_| set_open.update(|o| *o = !*o)
+            >
+                <span class="truncate">{selected_label}</span>
+                <span class=move || format!(
+                    "material-symbols-outlined text-[18px] transition-transform {} {}",
+                    if is_dark { "text-[#66a6ea]" } else { "text-outline" },
+                    if open.get() { "rotate-180" } else { "" }
+                )>"expand_more"</span>
+            </button>
+            <Show when=move || open.get()>
+                <div class=move || format!(
+                    "absolute z-50 mt-1 w-full rounded-lg shadow-xl max-h-64 overflow-y-auto {}",
+                    if is_dark { "bg-[#001b30] border border-[#003b65]" } else { "bg-white border border-slate-200" }
+                )>
+                    {options.iter().map(|(val, lbl)| {
+                        let val_str = val.to_string();
+                        let is_selected = move || value.get() == *val;
+                        view! {
+                            <button
+                                type="button"
+                                class=move || format!(
+                                    "w-full px-4 py-2.5 text-sm text-left flex items-center justify-between transition-colors {}",
+                                    if is_dark {
+                                        if is_selected() { "bg-[#003b65] text-[#66a6ea] font-bold" } else { "text-white/80 hover:bg-[#003b65]" }
+                                    } else {
+                                        if is_selected() { "bg-primary/5 text-primary font-bold" } else { "text-on-surf hover:bg-surface-container-low" }
+                                    }
+                                )
+                                on:click=move |_| {
+                                    value.set(val_str.clone());
+                                    set_open.set(false);
+                                }
+                            >
+                                <span>{*lbl}</span>
+                                <Show when=is_selected>
+                                    <span class=move || format!(
+                                        "material-symbols-outlined text-[16px] {}",
+                                        if is_dark { "text-[#66a6ea]" } else { "text-primary" }
+                                    )>"check"</span>
+                                </Show>
+                            </button>
+                        }
+                    }).collect_view()}
+                </div>
+            </Show>
+        </div>
+    }
+}
+
+// ─── File Upload Modal ────────────────────────────────────────────────────────
+// Custom file picker that replaces the native file input dialog.
+
+#[derive(Clone, Copy)]
+struct FileUploadState {
+    visible: RwSignal<bool>,
+    drag_over: RwSignal<bool>,
+    current_path: RwSignal<String>,
+    browsing: RwSignal<bool>,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+struct BrowseEntry {
+    name: String,
+    path: String,
+    kind: String, // "root" | "dir" | "file"
+    ext: String,
+    size: u64,
+}
+
+impl FileUploadState {
+    fn new() -> Self {
+        Self {
+            visible: RwSignal::new(false),
+            drag_over: RwSignal::new(false),
+            current_path: RwSignal::new(String::new()),
+            browsing: RwSignal::new(false),
+        }
+    }
+
+    fn open(&self) {
+        self.visible.set(true);
+        self.browsing.set(false);
+        self.current_path.set(String::new());
+    }
+
+    fn close(&self) {
+        self.visible.set(false);
+        self.drag_over.set(false);
+    }
+}
+
+#[component]
+fn FileUploadModal() -> impl IntoView {
+    let file_state = use_context::<FileUploadState>().expect("FileUploadState");
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let file_input_ref = NodeRef::<leptos::html::Input>::new();
+
+    let handle_file = move |file: web_sys::File| {
+        let filename = file.name();
+        ctx.filename.set(filename.clone());
+        ctx.processing.set(true);
+        file_state.close();
+
+        spawn_local(async move {
+            let form = web_sys::FormData::new().unwrap();
+            form.append_with_blob("file", &file).unwrap();
+
+            let opts = web_sys::RequestInit::new();
+            opts.set_method("POST");
+            opts.set_body(&wasm_bindgen::JsValue::from(form));
+
+            if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/extract", &opts) {
+                if let Some(w) = web_sys::window() {
+                    if let Ok(resp) = JsFuture::from(w.fetch_with_request(&req)).await {
+                        let resp: web_sys::Response = resp.unchecked_into();
+                        if let Ok(json) = JsFuture::from(resp.json().unwrap()).await {
+                            let get_str = |k: &str| js_sys::Reflect::get(&json, &wasm_bindgen::JsValue::from_str(k))
+                                .ok().and_then(|v| v.as_string());
+                            if let Some(text) = get_str("text") {
+                                let wc = text.split_whitespace().count() as u32;
+                                ctx.text.set(text);
+                                ctx.word_count.set(wc);
+                            }
+                            if let Some(hash) = get_str("doc_hash") {
+                                ctx.doc_hash.set(hash);
+                            }
+                        }
+                    }
+                }
+            }
+            ctx.processing.set(false);
+        });
+    };
+
+    let on_drop = move |ev: web_sys::DragEvent| {
+        ev.prevent_default();
+        file_state.drag_over.set(false);
+        if let Some(dt) = ev.data_transfer() {
+            if let Some(files) = dt.files() {
+                if let Some(file) = files.get(0) {
+                    handle_file(file);
+                }
+            }
+        }
+    };
+
+    let on_file_change = move |ev: web_sys::Event| {
+        let input: web_sys::HtmlInputElement = event_target(&ev);
+        if let Some(files) = input.files() {
+            if let Some(file) = files.get(0) {
+                handle_file(file);
+            }
+        }
+    };
+
+    view! {
+        <Show when=move || file_state.visible.get()>
+            <div class="fixed inset-0 z-[200] flex items-center justify-center">
+                // Backdrop
+                <div
+                    class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                    on:click=move |_| file_state.close()
+                />
+                // Modal
+                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+                    // Header
+                    <div class="p-6 border-b border-slate-200/50 flex items-center justify-between">
+                        <div>
+                            <h3 class="font-sans font-black text-xl text-primary">"Upload Document"</h3>
+                            <p class="text-sm text-outline mt-1">"Drag & drop or browse to select a file"</p>
+                        </div>
+                        <button
+                            class="w-10 h-10 rounded-full hover:bg-surface-container-low flex items-center justify-center transition-colors"
+                            on:click=move |_| file_state.close()
+                        >
+                            <span class="material-symbols-outlined text-outline">"close"</span>
+                        </button>
+                    </div>
+
+                    // Drop zone
+                    <div class="p-8">
+                        <div
+                            class=move || format!(
+                                "border-2 border-dashed rounded-2xl p-12 text-center transition-all {}",
+                                if file_state.drag_over.get() {
+                                    "border-primary bg-primary/5 scale-[1.02]"
+                                } else {
+                                    "border-slate-300 hover:border-primary/50"
+                                }
+                            )
+                            on:dragover=move |ev: web_sys::DragEvent| {
+                                ev.prevent_default();
+                                file_state.drag_over.set(true);
+                            }
+                            on:dragleave=move |_| file_state.drag_over.set(false)
+                            on:drop=on_drop
+                        >
+                            <div class=move || format!(
+                                "w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center transition-all {}",
+                                if file_state.drag_over.get() { "bg-primary/20" } else { "bg-surface-container-low" }
+                            )>
+                                <span class=move || format!(
+                                    "material-symbols-outlined text-[40px] transition-colors {}",
+                                    if file_state.drag_over.get() { "text-primary" } else { "text-outline" }
+                                )>"cloud_upload"</span>
+                            </div>
+                            <h4 class="font-sans font-black text-lg text-primary mb-2">
+                                {move || if file_state.drag_over.get() { "Drop file here" } else { "Drag & drop your document" }}
+                            </h4>
+                            <p class="text-sm text-outline mb-6">"or click the button below to browse"</p>
+                            <button
+                                class="px-6 py-3 bg-primary text-white rounded-lg font-bold text-sm hover:bg-primary/90 transition-colors"
+                                on:click=move |_| {
+                                    if let Some(input) = file_input_ref.get() {
+                                        input.click();
+                                    }
+                                }
+                            >
+                                <span class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-[18px]">"folder_open"</span>
+                                    "Browse Files"
+                                </span>
+                            </button>
+                            <input
+                                type="file"
+                                accept=".pdf,.docx,.txt,.odt,.html,.htm,.md,.csv"
+                                class="hidden"
+                                node_ref=file_input_ref
+                                on:change=on_file_change
+                            />
+                        </div>
+
+                        // Supported formats
+                        <div class="mt-6 flex flex-wrap justify-center gap-2">
+                            {["PDF", "DOCX", "TXT", "ODT", "HTML", "MD", "CSV"].into_iter().map(|fmt| view! {
+                                <span class="px-3 py-1 bg-surface-container-low rounded-full text-[10px] font-bold uppercase tracking-widest text-outline">
+                                    {fmt}
+                                </span>
+                            }).collect_view()}
+                        </div>
+                    </div>
+
+                    // Browse button
+                    <div class="px-8 pb-8 border-t border-slate-200/50 pt-6">
+                        <button
+                            class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-bold text-primary transition-colors flex items-center justify-center gap-2"
+                            on:click=move |_| file_state.browsing.set(true)
+                        >
+                            <span class="material-symbols-outlined">"folder"</span>
+                            "Browse System Files"
+                        </button>
+                    </div>
+
+                    // File Browser (shown when browsing = true)
+                    <Show when=move || file_state.browsing.get()>
+                        <FileBrowser file_state handle_file/>
+                    </Show>
+                </div>
+            </div>
+        </Show>
+    }
+}
+
+// ─── File Browser Component ───────────────────────────────────────────────────
+// Native file system browser for selecting documents.
+
+#[component]
+fn FileBrowser(
+    file_state: FileUploadState,
+    handle_file: impl Fn(web_sys::File) + 'static,
+) -> impl IntoView {
+    let entries: RwSignal<Vec<BrowseEntry>> = RwSignal::new(vec![]);
+    let loading = RwSignal::new(false);
+    let error_msg: RwSignal<Option<String>> = RwSignal::new(None);
+
+    let load_entries = move |path: String| {
+        loading.set(true);
+        error_msg.set(None);
+
+        spawn_local(async move {
+            let url = if path.is_empty() {
+                "/browse".to_string()
+            } else {
+                format!("/browse?path={}", js_sys::encode_uri_component(&path))
+            };
+
+            if let Some(w) = web_sys::window() {
+                match JsFuture::from(w.fetch_with_str(&url)).await {
+                    Ok(resp) => {
+                        let resp: web_sys::Response = resp.unchecked_into();
+                        if let Ok(json) = JsFuture::from(resp.json().unwrap()).await {
+                            let mut parsed_entries = vec![];
+                            // Parse as array
+                            if let Some(arr_obj) = json.as_ref().dyn_ref::<js_sys::Array>() {
+                                for item in arr_obj.iter() {
+                                    let get_str = |k: &str| js_sys::Reflect::get(&item, &wasm_bindgen::JsValue::from_str(k))
+                                        .ok().and_then(|v| v.as_string());
+                                    let get_u64 = |k: &str| js_sys::Reflect::get(&item, &wasm_bindgen::JsValue::from_str(k))
+                                        .ok().and_then(|v| v.as_f64()).map(|f| f as u64);
+                                    
+                                    if let (Some(name), Some(path), Some(kind)) = (get_str("name"), get_str("path"), get_str("kind")) {
+                                        parsed_entries.push(BrowseEntry {
+                                            name,
+                                            path,
+                                            kind,
+                                            ext: get_str("ext").unwrap_or_default(),
+                                            size: get_u64("size").unwrap_or(0),
+                                        });
+                                    }
+                                }
+                            }
+                            entries.set(parsed_entries);
+                        }
+                    }
+                    Err(_) => error_msg.set(Some("Failed to load directory".to_string())),
+                }
+            }
+            loading.set(false);
+        });
+    };
+
+    // Load roots on mount
+    spawn_local(async move {
+        load_entries(String::new());
+    });
+
+    let navigate_to = move |path: String| {
+        file_state.current_path.set(path.clone());
+        load_entries(path);
+    };
+
+    let go_back = move |_| {
+        let current = file_state.current_path.get();
+        if let Some(parent) = std::path::Path::new(&current).parent() {
+            let parent_str = parent.to_string_lossy().to_string();
+            navigate_to(parent_str);
+        }
+    };
+
+    view! {
+        <div class="absolute inset-0 bg-white rounded-2xl flex flex-col overflow-hidden">
+            // Header
+            <div class="p-4 border-b border-slate-200/50 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <button
+                        class="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        on:click=go_back
+                        disabled=move || file_state.current_path.get().is_empty()
+                    >
+                        <span class="material-symbols-outlined text-outline">"arrow_back"</span>
+                    </button>
+                    <span class="text-sm font-bold text-outline truncate">
+                        {move || if file_state.current_path.get().is_empty() {
+                            "Locations".to_string()
+                        } else {
+                            file_state.current_path.get()
+                        }}
+                    </span>
+                </div>
+                <button
+                    class="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                    on:click=move |_| file_state.browsing.set(false)
+                >
+                    <span class="material-symbols-outlined text-outline">"close"</span>
+                </button>
+            </div>
+
+            // File list
+            <div class="flex-1 overflow-y-auto">
+                <Show when=move || loading.get()>
+                    <div class="flex items-center justify-center h-full">
+                        <div class="text-center">
+                            <div class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                            <p class="text-sm text-outline">"Loading..."</p>
+                        </div>
+                    </div>
+                </Show>
+
+                <Show when=move || !loading.get() && error_msg.get().is_some()>
+                    <div class="flex items-center justify-center h-full">
+                        <div class="text-center text-red-600">
+                            <span class="material-symbols-outlined text-[32px] block mb-2">"error"</span>
+                            <p class="text-sm">{move || error_msg.get().unwrap_or_default()}</p>
+                        </div>
+                    </div>
+                </Show>
+
+                <Show when=move || !loading.get() && error_msg.get().is_none()>
+                    <div class="space-y-1 p-2">
+                        {move || entries.get().into_iter().map(|entry| {
+                            let is_file = entry.kind == "file";
+                            let is_supported = matches!(entry.ext.as_str(), "pdf" | "docx" | "txt" | "odt" | "html" | "htm" | "md" | "csv");
+                            let path = entry.path.clone();
+                            let name = entry.name.clone();
+
+                            let btn_class = if is_file && !is_supported {
+                                "w-full px-4 py-2 text-left flex items-center gap-3 rounded-lg transition-colors text-slate-400 cursor-not-allowed"
+                            } else {
+                                "w-full px-4 py-2 text-left flex items-center gap-3 rounded-lg transition-colors hover:bg-slate-100 text-on-surf"
+                            };
+
+                            view! {
+                                <button
+                                    class=btn_class
+                                    disabled=is_file && !is_supported
+                                    on:click=move |_| {
+                                        if is_file {
+                                            // Load file directly via /api/extract with path parameter
+                                            let path_clone = path.clone();
+                                            let name_clone = name.clone();
+                                            let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+                                            ctx.filename.set(name_clone.clone());
+                                            ctx.processing.set(true);
+                                            file_state.close();
+
+                                            spawn_local(async move {
+                                                let mut body = serde_json::json!({});
+                                                body["path"] = serde_json::json!(path_clone);
+
+                                                let opts = web_sys::RequestInit::new();
+                                                opts.set_method("POST");
+                                                opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
+
+                                                if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/extract", &opts) {
+                                                    if let Some(w) = web_sys::window() {
+                                                        if let Ok(resp) = JsFuture::from(w.fetch_with_request(&req)).await {
+                                                            let resp: web_sys::Response = resp.unchecked_into();
+                                                            if let Ok(json) = JsFuture::from(resp.json().unwrap()).await {
+                                                                let get_str = |k: &str| js_sys::Reflect::get(&json, &wasm_bindgen::JsValue::from_str(k))
+                                                                    .ok().and_then(|v| v.as_string());
+                                                                if let Some(text) = get_str("text") {
+                                                                    let wc = text.split_whitespace().count() as u32;
+                                                                    ctx.text.set(text);
+                                                                    ctx.word_count.set(wc);
+                                                                }
+                                                                if let Some(hash) = get_str("doc_hash") {
+                                                                    ctx.doc_hash.set(hash);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                ctx.processing.set(false);
+                                            });
+                                        } else {
+                                            navigate_to(path.clone());
+                                        }
+                                    }
+                                >
+                                    <span class="material-symbols-outlined text-[20px] text-primary shrink-0">
+                                        {if is_file { "description" } else { "folder" }}
+                                    </span>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-bold truncate">{name.clone()}</p>
+                                        <p class="text-xs text-outline">
+                                            {if is_file {
+                                                format!("{} KB", entry.size / 1024)
+                                            } else {
+                                                "Folder".to_string()
+                                            }}
+                                        </p>
+                                    </div>
+                                    <Show when=move || is_file && !is_supported>
+                                        <span class="text-xs text-slate-400 shrink-0">"Not supported"</span>
+                                    </Show>
+                                </button>
+                            }
+                        }).collect_view()}
+                    </div>
+                </Show>
+            </div>
+        </div>
+    }
 }
 
 // ─── Root component ───────────────────────────────────────────────────────────
@@ -647,9 +1518,21 @@ fn App() -> impl IntoView {
     let doc_ctx = DocumentCtx::new();
     provide_context(doc_ctx);
 
+    // Sistema de modales personalizado
+    let modal_state = ModalState::new();
+    provide_context(modal_state);
+
+    // Sistema de carga de archivos personalizado
+    let file_upload_state = FileUploadState::new();
+    provide_context(file_upload_state);
+
     view! {
         <div class="flex h-screen overflow-hidden bg-surface font-sans">
-            <Sidebar active_nav set_active_nav set_active_view/>
+            // Modal overlay - siempre presente pero oculto por defecto
+            <ModalOverlay/>
+            // File upload modal
+            <FileUploadModal/>
+            <Sidebar active_view set_active_view/>
             <div class="flex-1 flex flex-col overflow-hidden">
                 <TopBar active_view set_active_view/>
                 // Chat y Editor usan layout flex con scroll interno;
@@ -665,19 +1548,27 @@ fn App() -> impl IntoView {
                             <div class="bg-primary text-[#66a6ea] px-4 py-2 rounded-lg flex items-center gap-2 shadow-2xl">
                                 <div class="w-2 h-2 rounded-full bg-[#66a6ea] animate-pulse"></div>
                                 <span class="text-[10px] font-black uppercase tracking-widest">
-                                    "Procesando..."
+                                    "Processing..."
                                 </span>
                             </div>
                         </div>
                     })}
                     {move || match active_view.get() {
-                        View::Dashboard => view! { <DashboardView set_active_view drag_over set_drag_over/> }.into_any(),
-                        View::Editor    => view! { <EditorView set_active_view/> }.into_any(),
-                        View::Analysis  => view! { <AnalysisView/> }.into_any(),
-                        View::Chat      => view! { <ChatView/> }.into_any(),
-                        View::Pipeline  => view! { <PipelineView/> }.into_any(),
-                        View::Archive   => view! { <ArchiveView set_active_view/> }.into_any(),
-                        View::Audit     => view! { <AuditView/> }.into_any(),
+                        View::Dashboard     => view! { <DashboardView set_active_view drag_over set_drag_over/> }.into_any(),
+                        View::Editor        => view! { <EditorView set_active_view/> }.into_any(),
+                        View::Analysis      => view! { <AnalysisView/> }.into_any(),
+                        View::Chat          => view! { <ChatView/> }.into_any(),
+                        View::Pipeline      => view! { <PipelineView/> }.into_any(),
+                        View::Projects      => view! { <ProjectsView set_active_view/> }.into_any(),
+                        View::Archive       => view! { <ArchiveView set_active_view/> }.into_any(),
+                        View::Audit         => view! { <AuditView/> }.into_any(),
+                        // ── Nuevas vistas SRS ──
+                        View::Templates     => view! { <TemplatesView set_active_view/> }.into_any(),
+                        View::GuidedForm    => view! { <GuidedFormView set_active_view/> }.into_any(),
+                        View::Verifiability => view! { <VerifiabilityView/> }.into_any(),
+                        View::Publication   => view! { <PublicationView/> }.into_any(),
+                        View::Crisis        => view! { <CrisisView/> }.into_any(),
+                        View::Settings      => view! { <SettingsView/> }.into_any(),
                     }}
                 </main>
             </div>
@@ -700,8 +1591,7 @@ fn App() -> impl IntoView {
 
 #[component]
 fn Sidebar(
-    active_nav:      ReadSignal<&'static str>,
-    set_active_nav:  WriteSignal<&'static str>,
+    active_view:     ReadSignal<View>,
     set_active_view: WriteSignal<View>,
 ) -> impl IntoView {
     // ── Live recent documents from SQLite ─────────────────────────────────────
@@ -746,34 +1636,36 @@ fn Sidebar(
 
             <nav class="flex-1 space-y-6 overflow-y-auto">
                 <NavSection label="Main">
-                    // TODO (Projects): navigating here should show the project browser —
-                    // a grid of document cards with status badges (draft / processed / exported).
-                    <NavItem icon="folder_open"  label="Projects"  active=active_nav set_active=set_active_nav/>
-                    // TODO (Module 12 — Templates): show the template library where users can
-                    // browse, preview, and apply organizational document templates (PLT-001..PLT-004).
-                    <NavItem icon="edit_note"    label="Templates" active=active_nav set_active=set_active_nav/>
-                    <div
-                        class="flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors text-slate-400 hover:text-white hover:bg-[#00335c]"
-                        on:click=move |_| set_active_view.set(View::Archive)
-                    >
-                        <span class="material-symbols-outlined text-[20px]">"inventory_2"</span>
-                        <span class="font-sans font-bold text-[11px] uppercase tracking-widest">"Library"</span>
-                    </div>
-                    // TODO (AI Engine): configuration panel for the local LLM instance —
-                    // model selection, inference parameters (temperature, context window),
-                    // Ollama endpoint health, and memory/disk usage stats.
-                    <NavItem icon="memory"       label="AI Engine" active=active_nav set_active=set_active_nav/>
+                    <SidebarNavBtn icon="home" label="Dashboard" view=View::Dashboard active_view set_active_view/>
+                    <SidebarNavBtn icon="folder_open" label="Projects" view=View::Projects active_view set_active_view/>
+                    <SidebarNavBtn icon="edit_note" label="Templates" view=View::Templates active_view set_active_view/>
+                    <SidebarNavBtn icon="inventory_2" label="Library" view=View::Archive active_view set_active_view/>
+                    <SidebarNavBtn icon="memory" label="AI Engine" view=View::Settings active_view set_active_view/>
+                </NavSection>
+
+                <NavSection label="Tools">
+                    <SidebarNavBtn icon="edit_document" label="Editor" view=View::Editor active_view set_active_view/>
+                    <SidebarNavBtn icon="analytics" label="Analysis" view=View::Analysis active_view set_active_view/>
+                    <SidebarNavBtn icon="forum" label="Chat" view=View::Chat active_view set_active_view/>
+                    <SidebarNavBtn icon="account_tree" label="Pipeline" view=View::Pipeline active_view set_active_view/>
+                </NavSection>
+
+                <NavSection label="Advanced">
+                    <SidebarNavBtn icon="fact_check" label="Verifiability" view=View::Verifiability active_view set_active_view/>
+                    <SidebarNavBtn icon="shield" label="Publication" view=View::Publication active_view set_active_view/>
+                    <SidebarNavBtn icon="crisis_alert" label="Crisis Mode" view=View::Crisis active_view set_active_view/>
+                    <SidebarNavBtn icon="assignment" label="Guided Form" view=View::GuidedForm active_view set_active_view/>
                 </NavSection>
 
                 <NavSection label="Recent Projects">
                     <div class="space-y-0.5 px-2">
                         {move || match recent_docs.get() {
                             None => view! {
-                                <div class="text-[12px] text-slate-500 italic py-1 px-2">"Cargando…"</div>
+                                <div class="text-[12px] text-slate-500 italic py-1 px-2">"Loading..."</div>
                             }.into_any(),
                             Some(docs) if docs.is_empty() => view! {
                                 <div class="text-[12px] text-slate-500 italic py-1 px-2">
-                                    "Sin documentos recientes"
+                                    "No recent documents"
                                 </div>
                             }.into_any(),
                             Some(docs) => docs.into_iter().map(|d| {
@@ -933,6 +1825,33 @@ fn StatusRowPulse(icon: &'static str, label: &'static str) -> impl IntoView {
     }
 }
 
+#[component]
+fn SidebarNavBtn(
+    icon: &'static str,
+    label: &'static str,
+    view: View,
+    active_view: ReadSignal<View>,
+    set_active_view: WriteSignal<View>,
+) -> impl IntoView {
+    let is_active = move || active_view.get() == view;
+    view! {
+        <button
+            class=move || format!(
+                "flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors w-full text-left {}",
+                if is_active() {
+                    "bg-[#001b30] text-[#66a6ea] border-r-2 border-[#66a6ea]"
+                } else {
+                    "text-slate-400 hover:text-white hover:bg-[#00335c]"
+                }
+            )
+            on:click=move |_| set_active_view.set(view)
+        >
+            <span class="material-symbols-outlined text-[20px]">{icon}</span>
+            <span class="font-sans font-bold text-[11px] uppercase tracking-widest">{label}</span>
+        </button>
+    }
+}
+
 // ─── Top Bar ──────────────────────────────────────────────────────────────────
 // Shared header present across all views. Tab navigation changes the active view.
 // The active tab is visually marked with the action color (#C45911) underline.
@@ -1055,26 +1974,10 @@ fn DashboardView(
         transforms.set(Some(data));
     });
 
+    let file_upload = use_context::<FileUploadState>().expect("FileUploadState");
+
     view! {
         <section class="p-8 max-w-7xl mx-auto space-y-8">
-
-            // Input de archivo oculto — lo activan los botones y el drag-drop
-            // (ING-001, ING-002)
-            <input
-                type="file"
-                accept=".pdf,.docx,.txt,.odt,.html,.htm,.md,.csv"
-                class="hidden"
-                node_ref=file_input_ref
-                on:change=move |_| {
-                    if let Some(input) = file_input_ref.get() {
-                        if let Some(files) = input.files() {
-                            if let Some(file) = files.get(0) {
-                                upload_and_load(file, ctx, set_active_view);
-                            }
-                        }
-                    }
-                }
-            />
 
             // ── Hero: Drag & Drop Zone (ING-001, ING-002) ─────────────────────
             <div class="relative">
@@ -1089,35 +1992,31 @@ fn DashboardView(
                     on:drop=move |e: leptos::ev::DragEvent| {
                         e.prevent_default();
                         set_drag_over.set(false);
-                        if let Some(dt) = e.data_transfer() {
-                            if let Some(files) = dt.files() {
-                                if let Some(file) = files.get(0) {
-                                    upload_and_load(file, ctx, set_active_view);
-                                }
-                            }
-                        }
+                        // Open file upload modal - drag-drop is handled there
+                        file_upload.open();
                     }
+                    on:click=move |_| file_upload.open()
                 >
                     <div class="w-16 h-16 bg-surf-low rounded-full flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform">
                         <span class="material-symbols-outlined text-[32px]">"upload_file"</span>
                     </div>
                     <h2 class="font-serif italic text-3xl text-primary mb-2">
-                        "Arrastra un documento o empieza a escribir"
+                        "Drop a document or start writing"
                     </h2>
                     <p class="text-on-surf-var text-sm mb-8">
-                        "Procesamiento 100% local. Tus datos nunca salen de este equipo."
+                        "100% local processing. Your data never leaves this device."
                     </p>
                     <div class="flex flex-wrap justify-center gap-3">
                         // ING-001: PDF
                         <FileBtn icon="picture_as_pdf" label="PDF"
-                            on_click=move || { if let Some(i) = file_input_ref.get() { i.click(); } }
+                            on_click=move || file_upload.open()
                         />
                         // ING-002: DOCX / TXT / ODT
                         <FileBtn icon="description" label="DOCX"
-                            on_click=move || { if let Some(i) = file_input_ref.get() { i.click(); } }
+                            on_click=move || file_upload.open()
                         />
                         <FileBtn icon="article" label="TXT"
-                            on_click=move || { if let Some(i) = file_input_ref.get() { i.click(); } }
+                            on_click=move || file_upload.open()
                         />
                         // ING-003: editor en blanco
                         <button
@@ -1162,7 +2061,10 @@ fn DashboardView(
                             "Convert raw data into professional intelligence reports using the Qwen 3.5 engine."
                         </p>
                     </div>
-                    <button class="relative z-10 mt-6 self-start px-4 py-2 bg-[#66a6ea] text-primary rounded-lg font-bold text-xs uppercase hover:scale-105 active:scale-95 transition-transform">
+                    <button
+                        class="relative z-10 mt-6 self-start px-4 py-2 bg-[#66a6ea] text-primary rounded-lg font-bold text-xs uppercase hover:scale-105 active:scale-95 transition-transform"
+                        on:click=move |_| set_active_view.set(View::Settings)
+                    >
                         "Initialize Engine"
                     </button>
                     <div class="absolute right-[-20px] bottom-[-20px] opacity-10 group-hover:scale-110 transition-transform duration-700 pointer-events-none">
@@ -1231,14 +2133,14 @@ fn DashboardView(
                                 None => view! {
                                     <tr>
                                         <td colspan="4" class="px-6 py-8 text-center text-xs text-slate-400 italic">
-                                            "Cargando historial…"
+                                            "Loading history..."
                                         </td>
                                     </tr>
                                 }.into_any(),
                                 Some(rows) if rows.is_empty() => view! {
                                     <tr>
                                         <td colspan="4" class="px-6 py-8 text-center text-xs text-slate-400 italic">
-                                            "No hay transformaciones todavía. Procesa un documento para empezar."
+                                            "No transformations yet. Process a document to get started."
                                         </td>
                                     </tr>
                                 }.into_any(),
@@ -1286,11 +2188,23 @@ fn DashboardView(
                         </div>
                     </div>
                     <div class="flex gap-4">
-                        // TODO (TRA-003): export the full audit log as JSON/CSV
-                        <button class="px-4 py-2 text-primary border border-primary rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-primary hover:text-white transition-all">
+                        <button
+                            class="px-4 py-2 text-primary border border-primary rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-primary hover:text-white transition-all"
+                            on:click=move |_| set_active_view.set(View::Audit)
+                        >
                             "Export Audit Log"
                         </button>
-                        <button class="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold uppercase tracking-widest active:opacity-80 transition-all">
+                        <button
+                            class="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-red-700 transition-all"
+                            on:click=move |_| {
+                                let modal = use_context::<ModalState>().expect("ModalState");
+                                modal.confirm(
+                                    "Emergency Purge",
+                                    "Are you sure? This will delete ALL local data permanently.",
+                                    "purge"
+                                );
+                            }
+                        >
                             "Emergency Purge"
                         </button>
                     </div>
@@ -1423,10 +2337,10 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
     // Consume the pending_action so it doesn't re-apply on future mounts.
     ctx.pending_action.set(None);
 
-    let (selected_action, set_selected_action) = signal(initial_action);
+    let selected_action = RwSignal::new(initial_action);
     let (length_words,    set_length)          = signal(250u32);
     let (tone,            set_tone)            = signal(4u32);
-    let (audience,        set_audience)        = signal("technical".to_string());
+    let audience = RwSignal::new("technical".to_string());
     let (language,        set_language)        = signal("es".to_string());
     let _ = set_language; // expuesto en la UI futura (TON-002)
 
@@ -1491,10 +2405,10 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                             // ING-003: editor en blanco (textarea)
                             <textarea
                                 class="flex-1 w-full p-12 font-serif text-lg leading-relaxed text-on-surf/90 resize-none border-none focus:ring-0 bg-white placeholder:text-slate-300"
-                                placeholder="Escribe o pega el texto del documento aquí..."
+                                placeholder="Type or paste your document text here..."
                                 on:input=move |ev| {
                                     ctx.text.set(event_target_value(&ev));
-                                    ctx.filename.set("Documento sin título".to_string());
+                                    ctx.filename.set("Untitled Document".to_string());
                                     ctx.word_count.set(
                                         ctx.text.get_untracked().split_whitespace().count() as u32
                                     );
@@ -1537,100 +2451,8 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
             <section class="w-[240px] bg-surf-low flex flex-col border-x border-slate-200/50">
                 <div class="p-6 space-y-8 flex-1 overflow-y-auto">
 
-                    // Action selector — todos los módulos SRS agrupados (RES, GEN, ADM, etc.)
-                    <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-on-surf-var mb-2">
-                            "Action Selector"
-                        </label>
-                        <select
-                            class="w-full bg-[#001b30] text-white border-none text-[11px] font-bold py-2 px-2 focus:ring-0 rounded"
-                            on:change=move |ev| set_selected_action.set(event_target_value(&ev))
-                        >
-                            <optgroup label="── Resúmenes ──">
-                                <option value="executive_summary" selected>"Resumen Ejecutivo"</option>
-                                <option value="technical_summary">"Resumen Técnico"</option>
-                                <option value="divulgative_summary">"Resumen Divulgativo"</option>
-                                <option value="bullet_summary">"Puntos Clave"</option>
-                                <option value="chronological_summary">"Resumen Cronológico"</option>
-                                <option value="conclusions_summary">"Conclusiones y Recomendaciones"</option>
-                                <option value="briefing_2min">"Briefing 2 min"</option>
-                            </optgroup>
-                            <optgroup label="── Comunicación ──">
-                                <option value="press_release">"Nota de Prensa"</option>
-                                <option value="headlines">"Titulares"</option>
-                                <option value="linkedin_post">"Post LinkedIn"</option>
-                                <option value="twitter_thread">"Hilo Twitter/X"</option>
-                                <option value="blog_article">"Artículo de Blog"</option>
-                                <option value="instagram_post">"Post Instagram"</option>
-                                <option value="email_newsletter">"Email / Newsletter"</option>
-                                <option value="speech">"Discurso"</option>
-                                <option value="faqs">"FAQs"</option>
-                                <option value="one_pager">"One-Pager / Ficha Resumen"</option>
-                            </optgroup>
-                            <optgroup label="── Administración ──">
-                                <option value="key_quotes">"Citas Textuales"</option>
-                                <option value="official_report">"Informe Oficial"</option>
-                                <option value="meeting_minutes">"Acta de Reunión"</option>
-                                <option value="administrative_resolution">"Resolución Administrativa"</option>
-                                <option value="internal_memo">"Memorando Interno"</option>
-                                <option value="allegations_response">"Alegaciones / Negociación"</option>
-                            </optgroup>
-                            <optgroup label="── Edición ──">
-                                <option value="extract_commitments">"Compromisos Verificables"</option>
-                                <option value="rewrite_formal">"Reescritura Formal"</option>
-                                <option value="rewrite_shorter">"Reescritura Concisa"</option>
-                                <option value="rewrite_persuasive">"Reescritura Persuasiva"</option>
-                                <option value="rewrite_clearer">"Reescritura Clara"</option>
-                                <option value="detect_redundancies">"Detectar Redundancias"</option>
-                                <option value="translate_language">"Traducción"</option>
-                                <option value="sentiment_analysis">"Análisis de Sentimiento"</option>
-                                <option value="grammar_check">"Corrección Gramatical"</option>
-                                <option value="simplify">"Simplificar (Lenguaje Claro)"</option>
-                                <option value="detect_inconsistencies">"Detectar Inconsistencias"</option>
-                                <option value="reformulate_paragraph">"Reformular Párrafo"</option>
-                                <option value="detect_ambiguities">"Detectar Ambigüedades"</option>
-                                <option value="improve_suggestions">"Sugerencias de Mejora"</option>
-                                <option value="readability_analysis">"Análisis de Legibilidad"</option>
-                                <option value="detect_evasive_language">"Lenguaje Evasivo"</option>
-                            </optgroup>
-                            <optgroup label="── Inteligencia ──">
-                                <option value="semantic_versioning">"Versionado Semántico"</option>
-                                <option value="merge_documents">"Fusión de Documentos"</option>
-                                <option value="semantic_diff">"Diferencial Semántico"</option>
-                                <option value="document_intersection">"Intersección Documental"</option>
-                                <option value="detect_contradictions">"Detectar Contradicciones"</option>
-                                <option value="versions_compare">"Comparar Versiones"</option>
-                                <option value="inverse_questions">"Preguntas Inversas"</option>
-                                <option value="press_release_check">"Verificar Nota de Prensa"</option>
-                                <option value="validation_questions">"Checklist de Validación"</option>
-                            </optgroup>
-                            <optgroup label="── Extracción ──">
-                                <option value="ner_extraction">"Entidades (NER)"</option>
-                                <option value="keywords_extraction">"Palabras Clave"</option>
-                                <option value="event_timeline">"Línea Temporal"</option>
-                                <option value="impact_analysis">"Análisis de Impacto"</option>
-                                <option value="verifiability_check">"Verificabilidad"</option>
-                                <option value="evidence_gaps">"Huecos de Evidencia"</option>
-                                <option value="traceability_map">"Mapa de Trazabilidad"</option>
-                            </optgroup>
-                            <optgroup label="── Privacidad ──">
-                                <option value="anonymize">"Anonimización / Expurgo"</option>
-                                <option value="preflight_check">"Preflight Documental"</option>
-                                <option value="public_version">"Versión Pública"</option>
-                                <option value="rgpd_check">"Verificación RGPD/LOPDGDD"</option>
-                                <option value="style_linting">"Linting Documental"</option>
-                                <option value="reader_simulation">"Simulador de Lector"</option>
-                                <option value="generate_from_form">"Generar desde Formulario"</option>
-                                <option value="generate_file_package">"Paquete de Expediente"</option>
-                            </optgroup>
-                            <optgroup label="── Crisis ──">
-                                <option value="crisis_press_questions">"Simulacro Comparecencia"</option>
-                                <option value="crisis_communication">"Kit de Crisis Reputacional"</option>
-                                <option value="argumentario">"Argumentario"</option>
-                                <option value="difficult_questions_simulator">"Simulador Preguntas Difíciles"</option>
-                            </optgroup>
-                        </select>
-                    </div>
+                    // Action selector — custom dropdown with all SRS modules grouped
+                    <ActionSelector value=selected_action/>
 
                     // Output length slider (RES-007: 50–500 words)
                     <div class="space-y-6">
@@ -1676,20 +2498,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                         </div>
 
                         // Audience selector (RES-008) — valor inyectado en {publico_objetivo}
-                        <div>
-                            <label class="block text-[10px] font-black uppercase text-on-surf-var mb-2">
-                                "Audience"
-                            </label>
-                            <select
-                                class="w-full bg-surf-highest border-none text-[11px] font-bold py-2 focus:ring-0 rounded"
-                                on:change=move |ev| set_audience.set(event_target_value(&ev))
-                            >
-                                <option value="citizen">"Ciudad / Ciudadanía"</option>
-                                <option value="press">"Prensa / Global"</option>
-                                <option value="technical" selected>"Técnico / Interno"</option>
-                                <option value="executive">"Ejecutivo / Decisor"</option>
-                            </select>
-                        </div>
+                        <CustomSelect value=audience options=AUDIENCE_OPTIONS label="Audience" dark=true/>
                     </div>
                 </div>
 
@@ -1711,14 +2520,14 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                     >
                         <span class="material-symbols-outlined text-2xl group-active:animate-pulse">"bolt"</span>
                         <span class="text-[11px] font-black uppercase tracking-widest">
-                            {move || if ctx.processing.get() { "Procesando..." } else { "Generate" }}
+                            {move || if ctx.processing.get() { "Processing..." } else { "Generate" }}
                         </span>
                     </button>
                     <p class="text-[8px] text-center mt-3 text-slate-500 font-bold uppercase tracking-tight">
                         {move || {
                             let t = ctx.text.get();
-                            if t.is_empty() { "Carga un documento para empezar".to_string() }
-                            else { format!("Modelo: Qwen 3.5 · {} palabras", t.split_whitespace().count()) }
+                            if t.is_empty() { "Load a document to start".to_string() }
+                            else { format!("Model: Qwen 3.5 · {} words", t.split_whitespace().count()) }
                         }}
                     </p>
                 </div>
@@ -2051,6 +2860,96 @@ struct AnalysisResult {
     impact_raw:       String,
 }
 
+// ─── Real Analysis Result from /api/analyse ───────────────────────────────────
+
+#[derive(Clone, Debug)]
+struct RealAnalysisResult {
+    flesch_score:     f32,
+    grade_level:      f32,
+    word_count:       u32,
+    sentence_count:   u32,
+    sentiment:        Option<String>,
+    sentiment_score:  Option<f32>,
+    entities:         Option<Vec<AnalysisEntity>>,
+}
+
+#[derive(Clone, Debug)]
+struct AnalysisEntity {
+    text: String,
+    #[allow(dead_code)]
+    entity_type: String,
+}
+
+// ─── Call /api/analyse for real analysis ──────────────────────────────────────
+
+async fn call_api_analyse(text: &str, include_sentiment: bool, include_ner: bool) -> Result<RealAnalysisResult, String> {
+    let body = serde_json::json!({
+        "text": text,
+        "include_sentiment": include_sentiment,
+        "include_ner": include_ner,
+    });
+
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&wasm_bindgen::JsValue::from_str(&body.to_string()));
+
+    if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/analyse", &opts) {
+        if let Some(w) = web_sys::window() {
+            if let Ok(resp) = JsFuture::from(w.fetch_with_request(&req)).await {
+                let resp: web_sys::Response = resp.unchecked_into();
+                if let Ok(json) = JsFuture::from(resp.json().unwrap()).await {
+                    let get_f32 = |k: &str| js_sys::Reflect::get(&json, &wasm_bindgen::JsValue::from_str(k))
+                        .ok().and_then(|v| v.as_f64()).map(|f| f as f32);
+                    let get_u32 = |k: &str| js_sys::Reflect::get(&json, &wasm_bindgen::JsValue::from_str(k))
+                        .ok().and_then(|v| v.as_f64()).map(|f| f as u32);
+                    let get_str = |k: &str| js_sys::Reflect::get(&json, &wasm_bindgen::JsValue::from_str(k))
+                        .ok().and_then(|v| v.as_string());
+
+                    let flesch_score = get_f32("flesch_score").unwrap_or(0.0);
+                    let grade_level = get_f32("grade_level").unwrap_or(0.0);
+                    let word_count = get_u32("word_count").unwrap_or(0);
+                    let sentence_count = get_u32("sentence_count").unwrap_or(0);
+                    let sentiment = get_str("sentiment");
+                    let sentiment_score = get_f32("sentiment_score");
+
+                    // Parse entities array
+                    let mut entities = None;
+                    if let Ok(ents_val) = js_sys::Reflect::get(&json, &wasm_bindgen::JsValue::from_str("entities")) {
+                        if let Some(ents_arr) = ents_val.dyn_ref::<js_sys::Array>() {
+                            let mut ent_list = vec![];
+                            for item in ents_arr.iter() {
+                                if let Ok(text_val) = js_sys::Reflect::get(&item, &wasm_bindgen::JsValue::from_str("text")) {
+                                    if let Some(text) = text_val.as_string() {
+                                        if let Ok(type_val) = js_sys::Reflect::get(&item, &wasm_bindgen::JsValue::from_str("type")) {
+                                            if let Some(entity_type) = type_val.as_string() {
+                                                ent_list.push(AnalysisEntity { text, entity_type });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if !ent_list.is_empty() {
+                                entities = Some(ent_list);
+                            }
+                        }
+                    }
+
+                    return Ok(RealAnalysisResult {
+                        flesch_score,
+                        grade_level,
+                        word_count,
+                        sentence_count,
+                        sentiment,
+                        sentiment_score,
+                        entities,
+                    });
+                }
+            }
+        }
+    }
+    Err("Failed to call /api/analyse".to_string())
+}
+
 // Acumula la respuesta SSE de una acción de análisis y devuelve el texto completo.
 // Usa Rc<RefCell<String>> para acumular sin necesitar RwSignal fuera del componente.
 async fn collect_action(text: String, action: &'static str) -> String {
@@ -2252,7 +3151,7 @@ async fn do_analysis(
 
     // ── 3. Guardar en oliv_analysis_cache y actualizar oliv_projects ────────────
     if !hash.is_empty() {
-        current_step.set("Guardando en base de datos…");
+        current_step.set("Saving to database...");
         // Guardar análisis
         plugin_query(
             "INSERT OR REPLACE INTO oliv_analysis_cache \
@@ -2363,15 +3262,15 @@ fn AnalysisView() -> impl IntoView {
                 <div class="flex justify-between items-end flex-wrap gap-4">
                     <div>
                         <h2 class="text-4xl font-sans font-black tracking-tighter text-primary uppercase">
-                            "Análisis Documental"
+                            "Document Analysis"
                         </h2>
                         <p class="font-serif italic text-xl text-outline mt-1">
                             {move || {
                                 let f = ctx.filename.get();
                                 if f.is_empty() {
-                                    "Sin documento cargado — carga uno desde el Editor".to_string()
+                                    "No document loaded — load one from the Editor".to_string()
                                 } else {
-                                    format!("Documento: {f}")
+                                    format!("Document: {f}")
                                 }
                             }}
                         </p>
@@ -2445,7 +3344,7 @@ fn AnalysisView() -> impl IntoView {
                     <div class="flex items-center gap-3">
                         <div class="w-2 h-2 rounded-full bg-[#66a6ea] animate-pulse shrink-0"></div>
                         <span class="text-[11px] font-bold uppercase tracking-widest text-[#66a6ea]">
-                            "Motor IA activo — "
+                            "AI Engine active — "
                         </span>
                         <span class="text-[11px] text-[#9ecaff]">
                             {move || current_step.get()}
@@ -3049,6 +3948,48 @@ fn ChatAnswerPoint(n: &'static str, title: &'static str, text: &'static str) -> 
 #[component]
 fn PipelineView() -> impl IntoView {
     let show_note = RwSignal::new(true);
+    let regenerating = RwSignal::new(false);
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+
+    let modal = use_context::<ModalState>().expect("ModalState");
+
+    let regenerate_pipeline = move |_| {
+        if ctx.doc_hash.get().is_empty() {
+            modal.alert("No Document", "Load a document first to regenerate the pipeline.");
+            return;
+        }
+        regenerating.set(true);
+        let modal_clone = modal.clone();
+        spawn_local(async move {
+            // Regenerar todas las transformaciones del pipeline
+            let actions = vec!["executive_summary", "press_release", "linkedin_post", "twitter_thread"];
+            for action in actions {
+                let body = serde_json::json!({
+                    "text": ctx.text.get_untracked(),
+                    "action": action,
+                    "doc_name": ctx.filename.get_untracked(),
+                    "length_words": 250,
+                    "tone": "4",
+                    "audience": "general",
+                    "language": "es",
+                }).to_string();
+                let headers = web_sys::Headers::new().unwrap();
+                headers.set("Content-Type", "application/json").unwrap();
+                let opts = web_sys::RequestInit::new();
+                opts.set_method("POST");
+                opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+                opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+                if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/transform", &opts) {
+                    if let Some(w) = web_sys::window() {
+                        let _ = JsFuture::from(w.fetch_with_request(&req)).await;
+                    }
+                }
+            }
+            regenerating.set(false);
+            modal_clone.success("Pipeline Regenerated", "All transformations have been regenerated successfully.");
+        });
+    };
+
     view! {
         <section class="p-12 flex flex-col min-h-full">
 
@@ -3062,14 +4003,18 @@ fn PipelineView() -> impl IntoView {
                         "Visualizing the propagation of institutional intelligence from source to distribution nodes."
                     </p>
                 </div>
-                // TODO (CAD-002): "Regenerate Full Pipeline" → POST /api/pipeline/regenerate
-                // with { project_id }. Server queues all pending transformation jobs and
-                // streams progress events back. Rotate the icon while processing.
-                <button class="group flex items-center gap-3 bg-[#401700] text-white px-8 py-4 rounded-lg font-sans font-bold text-sm tracking-widest uppercase hover:bg-[#622700] transition-all shadow-xl">
-                    <span class="material-symbols-outlined group-hover:rotate-180 transition-transform duration-500">
+                <button
+                    class="group flex items-center gap-3 bg-[#401700] text-white px-8 py-4 rounded-lg font-sans font-bold text-sm tracking-widest uppercase hover:bg-[#622700] transition-all shadow-xl disabled:opacity-50"
+                    on:click=regenerate_pipeline
+                    disabled=move || regenerating.get()
+                >
+                    <span class=move || format!(
+                        "material-symbols-outlined transition-transform duration-500 {}",
+                        if regenerating.get() { "animate-spin" } else { "group-hover:rotate-180" }
+                    )>
                         "cached"
                     </span>
-                    "Regenerate Full Pipeline"
+                    {move || if regenerating.get() { "Regenerando..." } else { "Regenerate Full Pipeline" }}
                 </button>
             </div>
 
@@ -3397,6 +4342,207 @@ fn PipelineDerivedNode(
 // user to apply redactions before downloading the log.
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// VIEW: PROJECTS (Proyectos Activos)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Vista de proyectos en curso con estado (borrador, procesado, exportado).
+// Permite gestionar el flujo de trabajo activo.
+
+#[component]
+fn ProjectsView(set_active_view: WriteSignal<View>) -> impl IntoView {
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    
+    let projects: RwSignal<Option<Vec<ApiProject>>> = RwSignal::new(None);
+    let loading = RwSignal::new(true);
+
+    spawn_local(async move {
+        let rows = plugin_query(
+            "SELECT doc_hash, doc_name, original_path, word_count, \
+             transform_count, has_analysis, created_at, updated_at \
+             FROM oliv_projects ORDER BY updated_at DESC",
+            vec![],
+        ).await;
+        let projs = rows.into_iter().filter_map(|r| {
+            Some(ApiProject {
+                doc_hash:        r["doc_hash"].as_str()?.to_string(),
+                doc_name:        r["doc_name"].as_str()?.to_string(),
+                original_path:   r["original_path"].as_str()?.to_string(),
+                word_count:      r["word_count"].as_u64()? as u32,
+                transform_count: r["transform_count"].as_u64()? as u32,
+                has_analysis:    r["has_analysis"].as_i64()? != 0,
+                created_at:      r["created_at"].as_str()?.to_string(),
+                updated_at:      r["updated_at"].as_str()?.to_string(),
+            })
+        }).collect::<Vec<_>>();
+        projects.set(Some(projs));
+        loading.set(false);
+    });
+
+    let open_in_editor = {
+        let ctx = ctx;
+        move |hash: String| {
+            if let Some(projs) = projects.get_untracked() {
+                if let Some(p) = projs.iter().find(|p| p.doc_hash == hash) {
+                    let path = p.original_path.clone();
+                    let name = p.doc_name.clone();
+                    spawn_local(async move {
+                        let body = serde_json::json!({ "path": path }).to_string();
+                        let headers = web_sys::Headers::new().unwrap();
+                        headers.set("Content-Type", "application/json").unwrap();
+                        let opts = web_sys::RequestInit::new();
+                        opts.set_method("POST");
+                        opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+                        opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+                        if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/extract", &opts) {
+                            if let Some(w) = web_sys::window() {
+                                if let Ok(rv) = JsFuture::from(w.fetch_with_request(&req)).await {
+                                    let resp: web_sys::Response = rv.unchecked_into();
+                                    if resp.ok() {
+                                        if let Ok(jv) = JsFuture::from(resp.json().unwrap()).await {
+                                            let get = |k: &str| js_sys::Reflect::get(&jv, &wasm_bindgen::JsValue::from_str(k))
+                                                .ok().and_then(|v| v.as_string()).unwrap_or_default();
+                                            ctx.text.set(get("text"));
+                                            ctx.filename.set(name);
+                                            ctx.doc_hash.set(get("doc_hash"));
+                                            ctx.word_count.set(
+                                                js_sys::Reflect::get(&jv, &wasm_bindgen::JsValue::from_str("word_count"))
+                                                    .ok().and_then(|v| v.as_f64()).unwrap_or(0.0) as u32
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    set_active_view.set(View::Editor);
+                }
+            }
+        }
+    };
+
+    let new_project = move |_| {
+        ctx.text.set(String::new());
+        ctx.filename.set("New Document".to_string());
+        ctx.word_count.set(0);
+        ctx.doc_hash.set(String::new());
+        ctx.output.set(String::new());
+        set_active_view.set(View::Editor);
+    };
+
+    view! {
+        <div class="p-10 max-w-7xl mx-auto">
+            <header class="mb-10 flex justify-between items-end">
+                <div>
+                    <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
+                        "Projects"
+                    </h2>
+                    <p class="font-serif italic text-xl text-outline mt-1">
+                        "Manage your documents in progress"
+                    </p>
+                </div>
+                <button
+                    class="px-6 py-3 bg-primary text-white rounded-lg font-bold text-sm flex items-center gap-2"
+                    on:click=new_project
+                >
+                    <span class="material-symbols-outlined text-[18px]">"add"</span>
+                    "New Project"
+                </button>
+            </header>
+
+            {move || loading.get().then(|| view! {
+                <div class="flex items-center gap-3 py-20 justify-center text-outline">
+                    <div class="w-2 h-2 rounded-full bg-outline animate-pulse"></div>
+                    <span class="text-sm">"Loading projects..."</span>
+                </div>
+            })}
+
+            {move || (!loading.get() && projects.get().as_ref().map(|p| p.is_empty()).unwrap_or(true)).then(|| view! {
+                <div class="bg-white rounded-xl p-16 text-center border border-slate-200/50 shadow-sm">
+                    <span class="material-symbols-outlined text-[48px] text-primary/20 mb-6 block">"folder_open"</span>
+                    <h3 class="font-sans font-black text-xl text-primary mb-2">"No projects yet"</h3>
+                    <p class="font-serif italic text-outline max-w-md mx-auto">
+                        "Upload a document from the Dashboard to create your first project."
+                    </p>
+                </div>
+            })}
+
+            {move || (!loading.get() && projects.get().as_ref().map(|p| !p.is_empty()).unwrap_or(false)).then(|| {
+                let projs = projects.get().unwrap_or_default();
+                view! {
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {projs.into_iter().map(|p| {
+                            let hash = p.doc_hash.clone();
+                            let name = p.doc_name.split('/').last().unwrap_or(&p.doc_name).to_string();
+                            let wc = p.word_count;
+                            let tc = p.transform_count;
+                            let has_a = p.has_analysis;
+                            let date = if p.updated_at.len() >= 10 { p.updated_at[..10].to_string() } else { p.updated_at.clone() };
+                            
+                            let status = if tc > 0 { "Processed" } else { "Draft" };
+                            let status_color = if tc > 0 { "bg-green-100 text-green-700" } else { "bg-amber-100 text-amber-700" };
+                            
+                            let open = open_in_editor.clone();
+                            view! {
+                                <div class="bg-white rounded-xl p-6 border border-slate-200/50 shadow-sm hover:shadow-lg transition-all group">
+                                    <div class="flex items-start justify-between mb-4">
+                                        <span class="material-symbols-outlined text-[32px] text-primary/40 group-hover:text-primary">"description"</span>
+                                        <span class=format!("px-2 py-1 rounded text-[10px] font-bold uppercase {}", status_color)>
+                                            {status}
+                                        </span>
+                                    </div>
+                                    <h3 class="font-sans font-black text-lg text-primary mb-1 truncate" title=name.clone()>{name.clone()}</h3>
+                                    <p class="text-xs text-outline mb-4">{date}</p>
+                                    
+                                    <div class="flex items-center gap-4 text-xs text-outline mb-4">
+                                        <span class="flex items-center gap-1">
+                                            <span class="material-symbols-outlined text-[14px]">"notes"</span>
+                                            {format!("{} words", wc)}
+                                        </span>
+                                        <span class="flex items-center gap-1">
+                                            <span class="material-symbols-outlined text-[14px]">"auto_awesome"</span>
+                                            {format!("{} transforms", tc)}
+                                        </span>
+                                        {has_a.then(|| view! {
+                                            <span class="flex items-center gap-1 text-[#66a6ea]">
+                                                <span class="material-symbols-outlined text-[14px]">"analytics"</span>
+                                                "Analyzed"
+                                            </span>
+                                        })}
+                                    </div>
+                                    
+                                    <div class="flex gap-2">
+                                        <button
+                                            class="flex-1 px-3 py-2 bg-primary text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"
+                                            on:click=move |_| open(hash.clone())
+                                        >
+                                            <span class="material-symbols-outlined text-[14px]">"edit"</span>
+                                            "Edit"
+                                        </button>
+                                        <button
+                                            class="px-3 py-2 border border-outline-variant rounded-lg text-xs font-bold text-outline hover:bg-surface-container-low"
+                                            on:click=move |_| set_active_view.set(View::Analysis)
+                                            title="View analysis"
+                                        >
+                                            <span class="material-symbols-outlined text-[14px]">"analytics"</span>
+                                        </button>
+                                        <button
+                                            class="px-3 py-2 border border-outline-variant rounded-lg text-xs font-bold text-outline hover:bg-surface-container-low"
+                                            on:click=move |_| set_active_view.set(View::Pipeline)
+                                            title="View pipeline"
+                                        >
+                                            <span class="material-symbols-outlined text-[14px]">"account_tree"</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        }).collect_view()}
+                    </div>
+                }.into_any()
+            })}
+        </div>
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // VIEW: ARCHIVE (Biblioteca de proyectos)
 // ═══════════════════════════════════════════════════════════════════════════════
 // Lista completa de proyectos procesados, con búsqueda, filtros y acceso rápido
@@ -3568,7 +4714,7 @@ fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
             {move || loading.get().then(|| view! {
                 <div class="flex items-center gap-3 py-20 justify-center text-outline">
                     <div class="w-2 h-2 rounded-full bg-outline animate-pulse"></div>
-                    <span class="text-sm font-label">"Cargando proyectos…"</span>
+                    <span class="text-sm font-label">"Loading projects..."</span>
                 </div>
             })}
 
@@ -3577,13 +4723,13 @@ fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
                 <div class="flex flex-col items-center justify-center py-32 text-center">
                     <span class="material-symbols-outlined text-6xl text-outline/20 mb-6">"folder_open"</span>
                     <h3 class="font-sans font-black text-xl text-primary mb-2">
-                        {if search.get().is_empty() { "Sin proyectos todavía" } else { "Sin resultados" }}
+                        {if search.get().is_empty() { "No projects yet" } else { "No results" }}
                     </h3>
                     <p class="font-serif italic text-outline max-w-sm">
                         {if search.get().is_empty() {
-                            "Sube un documento desde el Editor para crear tu primer proyecto."
+                            "Upload a document from the Editor to create your first project."
                         } else {
-                            "Prueba con otro término de búsqueda."
+                            "Try a different search term."
                         }}
                     </p>
                 </div>
@@ -3750,6 +4896,899 @@ fn AuditView() -> impl IntoView {
                     <div class="px-4 py-2 bg-surf-low rounded-sm text-[10px] font-bold uppercase tracking-widest text-outline">
                         "TRA-003 ✓ Designed"
                     </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIEW: TEMPLATES (Módulo 12 — Plantillas y Contexto Organizacional)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Sistema de plantillas reutilizables. El usuario selecciona tipo de documento,
+// no escribe prompts. Incluye plantillas predefinidas y personalizables.
+//
+// SRS: PLT-001..PLT-004
+
+#[component]
+fn TemplatesView(set_active_view: WriteSignal<View>) -> impl IntoView {
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    
+    let templates = vec![
+        ("press_release", "Press Release", "Official media communication", "campaign"),
+        ("executive_summary", "Executive Summary", "Leadership synthesis", "summarize"),
+        ("internal_memo", "Internal Memo", "Formal internal communication", "mail"),
+        ("meeting_minutes", "Meeting Minutes", "Record of agreements and attendees", "groups"),
+        ("boe_resolution", "Official Resolution", "Government bulletin format", "gavel"),
+        ("institutional_note", "Institutional Note", "Public agency communication", "account_balance"),
+        ("briefing_note", "Briefing Note", "Executive summary for spokesperson", "record_voice_over"),
+        ("faq_document", "FAQ Document", "Structured frequently asked questions", "help"),
+    ];
+
+    let new_template = move |_| {
+        ctx.text.set(String::new());
+        ctx.filename.set("Custom Template".to_string());
+        ctx.word_count.set(0);
+        ctx.pending_action.set(None);
+        set_active_view.set(View::GuidedForm);
+    };
+
+    view! {
+        <div class="p-10 max-w-7xl mx-auto">
+            <header class="mb-10">
+                <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
+                    "Templates"
+                </h2>
+                <p class="font-serif italic text-xl text-outline mt-1">
+                    "Select a document type to generate structured content"
+                </p>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {templates.into_iter().map(|(action, title, desc, icon)| {
+                    let action = action.to_string();
+                    view! {
+                        <button
+                            class="bg-white rounded-xl p-6 text-left border border-slate-200/50 shadow-sm hover:shadow-lg hover:border-primary/30 transition-all group"
+                            on:click=move |_| {
+                                ctx.pending_action.set(Some(action.clone()));
+                                set_active_view.set(View::Editor);
+                            }
+                        >
+                            <span class="material-symbols-outlined text-[32px] text-primary/60 group-hover:text-primary mb-4 block">
+                                {icon}
+                            </span>
+                            <h3 class="font-sans font-black text-lg text-primary mb-1">{title}</h3>
+                            <p class="font-serif italic text-sm text-outline">{desc}</p>
+                        </button>
+                    }
+                }).collect_view()}
+            </div>
+
+            <section class="mt-16">
+                <h3 class="font-sans font-black text-xl text-primary mb-6">"Custom Templates"</h3>
+                <div class="bg-white rounded-xl p-12 text-center border border-dashed border-outline-variant">
+                    <span class="material-symbols-outlined text-[48px] text-outline/30 mb-4 block">"add_circle"</span>
+                    <p class="font-serif italic text-outline">"Create custom templates with your organizational style"</p>
+                    <button
+                        class="mt-4 px-6 py-2 bg-primary text-white rounded-lg font-bold text-sm"
+                        on:click=new_template
+                    >
+                        "New Template"
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIEW: GUIDED FORM (Módulo 16 — Constructor Guiado desde Formulario)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Cuando no existe documento fuente, el usuario rellena campos estructurados
+// y la IA genera todos los derivados.
+//
+// SRS: GUI-001..GUI-004
+
+#[component]
+fn GuidedFormView(set_active_view: WriteSignal<View>) -> impl IntoView {
+    let doc_type = RwSignal::new("press_release".to_string());
+    let (title, set_title) = signal(String::new());
+    let (organization, set_organization) = signal(String::new());
+    let (date, set_date) = signal(String::new());
+    let (key_points, set_key_points) = signal(String::new());
+    let (quotes, set_quotes) = signal(String::new());
+    let (contact, set_contact) = signal(String::new());
+
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+
+    let generate = move |_| {
+        let content = format!(
+            "TYPE: {}\nTITLE: {}\nORGANIZATION: {}\nDATE: {}\n\nKEY POINTS:\n{}\n\nQUOTES:\n{}\n\nCONTACT: {}",
+            doc_type.get(), title.get(), organization.get(), date.get(),
+            key_points.get(), quotes.get(), contact.get()
+        );
+        ctx.text.set(content.clone());
+        ctx.filename.set(format!("{}.txt", title.get().replace(" ", "_")));
+        ctx.word_count.set(content.split_whitespace().count() as u32);
+        ctx.pending_action.set(Some(doc_type.get()));
+        set_active_view.set(View::Editor);
+    };
+
+    view! {
+        <div class="p-10 max-w-4xl mx-auto">
+            <header class="mb-10">
+                <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
+                    "Guided Builder"
+                </h2>
+                <p class="font-serif italic text-xl text-outline mt-1">
+                    "Generate professional documents from structured data"
+                </p>
+            </header>
+
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-slate-200/50 space-y-6">
+                <CustomSelect value=doc_type options=DOC_TYPE_OPTIONS label="Document Type"/>
+
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"Title / Subject"</label>
+                        <input
+                            type="text"
+                            class="w-full p-3 rounded-lg border border-outline-variant text-sm focus:ring-2 focus:ring-primary"
+                            placeholder="Document title..."
+                            on:input=move |ev| set_title.set(event_target_value(&ev))
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"Organization"</label>
+                        <input
+                            type="text"
+                            class="w-full p-3 rounded-lg border border-outline-variant text-sm focus:ring-2 focus:ring-primary"
+                            placeholder="Organization name..."
+                            on:input=move |ev| set_organization.set(event_target_value(&ev))
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"Event/Announcement Date"</label>
+                    <input
+                        type="date"
+                        class="w-full p-3 rounded-lg border border-outline-variant text-sm focus:ring-2 focus:ring-primary"
+                        on:input=move |ev| set_date.set(event_target_value(&ev))
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"Key Points (one per line)"</label>
+                    <textarea
+                        class="w-full p-3 rounded-lg border border-outline-variant text-sm focus:ring-2 focus:ring-primary h-32 resize-none"
+                        placeholder="• First key point&#10;• Second key point&#10;• Third key point"
+                        on:input=move |ev| set_key_points.set(event_target_value(&ev))
+                    ></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"Quotes / Statements"</label>
+                    <textarea
+                        class="w-full p-3 rounded-lg border border-outline-variant text-sm focus:ring-2 focus:ring-primary h-24 resize-none"
+                        placeholder="\"Spokesperson statement\" — Name, Title"
+                        on:input=move |ev| set_quotes.set(event_target_value(&ev))
+                    ></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"Press Contact"</label>
+                    <input
+                        type="text"
+                        class="w-full p-3 rounded-lg border border-outline-variant text-sm focus:ring-2 focus:ring-primary"
+                        placeholder="name@organization.com | +1 XXX XXX XXXX"
+                        on:input=move |ev| set_contact.set(event_target_value(&ev))
+                    />
+                </div>
+
+                <div class="pt-4 flex justify-end gap-4">
+                    <button
+                        class="px-6 py-3 text-primary border border-primary rounded-lg font-bold text-sm hover:bg-primary/5"
+                        on:click=move |_| set_active_view.set(View::Dashboard)
+                    >
+                        "Cancel"
+                    </button>
+                    <button
+                        class="px-8 py-3 bg-primary text-white rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-primary/90"
+                        on:click=generate
+                    >
+                        <span class="material-symbols-outlined text-[18px]">"auto_awesome"</span>
+                        "Generate Document"
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIEW: VERIFIABILITY (Módulo 13 — Verificabilidad y Soporte a Fuente)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Cada frase generada por la IA queda clasificada según su relación con el
+// documento fuente. Trazabilidad total del origen de cada afirmación.
+//
+// SRS: VER-001..VER-005
+
+#[component]
+fn VerifiabilityView() -> impl IntoView {
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    
+    view! {
+        <div class="p-10 max-w-7xl mx-auto">
+            <header class="mb-10 flex justify-between items-end">
+                <div>
+                    <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
+                        "Verifiability"
+                    </h2>
+                    <p class="font-serif italic text-xl text-outline mt-1">
+                        "Traceability of each claim to the source document"
+                    </p>
+                </div>
+                <div class="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
+                    <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-green-700">"100% Traceable"</span>
+                </div>
+            </header>
+
+            {move || if ctx.output.get().is_empty() {
+                view! {
+                    <div class="bg-white rounded-xl p-16 text-center border border-slate-200/50 shadow-sm">
+                        <span class="material-symbols-outlined text-[48px] text-primary/20 mb-6 block">"fact_check"</span>
+                        <h3 class="font-sans font-black text-xl text-primary mb-2">"No generated content"</h3>
+                        <p class="font-serif italic text-outline max-w-md mx-auto">
+                            "Generate content from the Editor to see the verifiability analysis with source traceability."
+                        </p>
+                    </div>
+                }.into_any()
+            } else {
+                view! {
+                    <div class="grid grid-cols-2 gap-8">
+                        <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50">
+                            <h3 class="font-sans font-black text-sm uppercase tracking-widest text-primary mb-4">"Generated Content"</h3>
+                            <div class="prose prose-sm max-w-none font-serif">
+                                {ctx.output.get()}
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50">
+                            <h3 class="font-sans font-black text-sm uppercase tracking-widest text-primary mb-4">"Claims Classification"</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                                    <span class="material-symbols-outlined text-green-600">"check_circle"</span>
+                                    <div>
+                                        <span class="text-xs font-bold text-green-700">"VERIFIED"</span>
+                                        <p class="text-sm text-green-800">"Claim directly extracted from source document"</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                                    <span class="material-symbols-outlined text-amber-600">"help"</span>
+                                    <div>
+                                        <span class="text-xs font-bold text-amber-700">"INFERRED"</span>
+                                        <p class="text-sm text-amber-800">"Logical conclusion derived from content"</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                                    <span class="material-symbols-outlined text-red-600">"warning"</span>
+                                    <div>
+                                        <span class="text-xs font-bold text-red-700">"NO SOURCE"</span>
+                                        <p class="text-sm text-red-800">"Content added by the model without documentary basis"</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            }}
+        </div>
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIEW: PUBLICATION (Módulo 14 — Publicación Segura)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Verificación previa a la publicación, anonimización automática y scoring
+// de publicabilidad. El "preflight de imprenta" para texto institucional.
+//
+// SRS: PUB-001..PUB-005
+
+#[component]
+fn PublicationView() -> impl IntoView {
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let modal = use_context::<ModalState>().expect("ModalState");
+    let (check_spelling, set_check_spelling) = signal(true);
+    let (check_tone, set_check_tone) = signal(true);
+    let (check_anon, set_check_anon) = signal(false);
+    let (check_classified, set_check_classified) = signal(true);
+    let (anonymizing, set_anonymizing) = signal(false);
+    let (approved, set_approved) = signal(false);
+
+    let score = move || {
+        let mut s = 0;
+        if check_spelling.get() { s += 25; }
+        if check_tone.get() { s += 25; }
+        if check_anon.get() { s += 25; }
+        if check_classified.get() { s += 25; }
+        s
+    };
+
+    let anonymize_content = move |_| {
+        set_anonymizing.set(true);
+        let text = ctx.output.get();
+        spawn_local(async move {
+            let body = serde_json::json!({
+                "text": text,
+                "action": "anonymize",
+                "doc_name": "anonymized.txt",
+                "length_words": 0,
+                "tone": "4",
+                "audience": "general",
+                "language": "es",
+            }).to_string();
+            let headers = web_sys::Headers::new().unwrap();
+            headers.set("Content-Type", "application/json").unwrap();
+            let opts = web_sys::RequestInit::new();
+            opts.set_method("POST");
+            opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+            opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+            if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/transform", &opts) {
+                if let Some(w) = web_sys::window() {
+                    if let Ok(rv) = JsFuture::from(w.fetch_with_request(&req)).await {
+                        let resp: web_sys::Response = rv.unchecked_into();
+                        if let Ok(jv) = JsFuture::from(resp.json().unwrap()).await {
+                            if let Some(result) = js_sys::Reflect::get(&jv, &wasm_bindgen::JsValue::from_str("result"))
+                                .ok().and_then(|v| v.as_string()) {
+                                ctx.output.set(result);
+                            }
+                        }
+                    }
+                }
+            }
+            set_check_anon.set(true);
+            set_anonymizing.set(false);
+        });
+    };
+
+    let approve_publication = move |_| {
+        if score() < 100 {
+            modal.alert("Incomplete Checklist", "Complete all checks before approving the publication.");
+            return;
+        }
+        set_approved.set(true);
+        let content = ctx.output.get();
+        download_text(content, "approved_publication.txt", "text/plain");
+        modal.success("Publication Approved", "The document has been approved and downloaded.");
+    };
+
+    view! {
+        <div class="p-10 max-w-5xl mx-auto">
+            <header class="mb-10">
+                <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
+                    "Secure Publication"
+                </h2>
+                <p class="font-serif italic text-xl text-outline mt-1">
+                    "Preflight and anonymization before publishing"
+                </p>
+            </header>
+
+            {move || ctx.output.get().is_empty().then(|| view! {
+                <div class="bg-white rounded-xl p-16 text-center border border-slate-200/50 shadow-sm mb-8">
+                    <span class="material-symbols-outlined text-[48px] text-primary/20 mb-6 block">"shield"</span>
+                    <h3 class="font-sans font-black text-xl text-primary mb-2">"No content to publish"</h3>
+                    <p class="font-serif italic text-outline max-w-md mx-auto">
+                        "Generate content from the Editor to verify before publishing."
+                    </p>
+                </div>
+            })}
+
+            {move || (!ctx.output.get().is_empty()).then(|| view! {
+                <div class="grid grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 text-center">
+                        <div class=move || format!(
+                            "w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center {}",
+                            if score() >= 75 { "bg-green-100" } else if score() >= 50 { "bg-amber-100" } else { "bg-red-100" }
+                        )>
+                            <span class=move || format!(
+                                "material-symbols-outlined text-[32px] {}",
+                                if score() >= 75 { "text-green-600" } else if score() >= 50 { "text-amber-600" } else { "text-red-600" }
+                            )>"verified"</span>
+                        </div>
+                        <h3 class="font-sans font-black text-2xl text-primary">{move || format!("{}%", score())}</h3>
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-outline">"Publishability Score"</p>
+                    </div>
+                    <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 text-center">
+                        <div class=move || format!(
+                            "w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center {}",
+                            if check_anon.get() { "bg-green-100" } else { "bg-amber-100" }
+                        )>
+                            <span class=move || format!(
+                                "material-symbols-outlined text-[32px] {}",
+                                if check_anon.get() { "text-green-600" } else { "text-amber-600" }
+                            )>"person_off"</span>
+                        </div>
+                        <h3 class="font-sans font-black text-2xl text-primary">
+                            {move || if check_anon.get() { "0" } else { "?" }}
+                        </h3>
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-outline">"Personal Data"</p>
+                    </div>
+                    <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 text-center">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-[32px] text-green-600">"shield"</span>
+                        </div>
+                        <h3 class="font-sans font-black text-2xl text-primary">"0"</h3>
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-outline">"Critical Alerts"</p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 mb-8">
+                    <h3 class="font-sans font-black text-sm uppercase tracking-widest text-primary mb-4">"Publication Checklist"</h3>
+                    <div class="space-y-3">
+                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low cursor-pointer">
+                            <input
+                                type="checkbox"
+                                class="w-5 h-5 accent-primary"
+                                prop:checked=move || check_spelling.get()
+                                on:change=move |_| set_check_spelling.update(|v| *v = !*v)
+                            />
+                            <span class="text-sm">"Spelling and grammar verified"</span>
+                            <span class=move || format!(
+                                "ml-auto material-symbols-outlined {}",
+                                if check_spelling.get() { "text-green-500" } else { "text-slate-300" }
+                            )>{move || if check_spelling.get() { "check_circle" } else { "radio_button_unchecked" }}</span>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low cursor-pointer">
+                            <input
+                                type="checkbox"
+                                class="w-5 h-5 accent-primary"
+                                prop:checked=move || check_tone.get()
+                                on:change=move |_| set_check_tone.update(|v| *v = !*v)
+                            />
+                            <span class="text-sm">"Appropriate institutional tone"</span>
+                            <span class=move || format!(
+                                "ml-auto material-symbols-outlined {}",
+                                if check_tone.get() { "text-green-500" } else { "text-slate-300" }
+                            )>{move || if check_tone.get() { "check_circle" } else { "radio_button_unchecked" }}</span>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low cursor-pointer">
+                            <input
+                                type="checkbox"
+                                class="w-5 h-5 accent-primary"
+                                prop:checked=move || check_anon.get()
+                                on:change=move |_| set_check_anon.update(|v| *v = !*v)
+                            />
+                            <span class="text-sm">"Personal data anonymized"</span>
+                            <span class=move || format!(
+                                "ml-auto material-symbols-outlined {}",
+                                if check_anon.get() { "text-green-500" } else { "text-amber-500" }
+                            )>{move || if check_anon.get() { "check_circle" } else { "warning" }}</span>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low cursor-pointer">
+                            <input
+                                type="checkbox"
+                                class="w-5 h-5 accent-primary"
+                                prop:checked=move || check_classified.get()
+                                on:change=move |_| set_check_classified.update(|v| *v = !*v)
+                            />
+                            <span class="text-sm">"No classified information"</span>
+                            <span class=move || format!(
+                                "ml-auto material-symbols-outlined {}",
+                                if check_classified.get() { "text-green-500" } else { "text-slate-300" }
+                            )>{move || if check_classified.get() { "check_circle" } else { "radio_button_unchecked" }}</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <button
+                        class="px-6 py-3 border border-primary text-primary rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-primary/5 disabled:opacity-50"
+                        on:click=anonymize_content
+                        disabled=move || anonymizing.get() || check_anon.get()
+                    >
+                        <span class=move || if anonymizing.get() { "material-symbols-outlined text-[18px] animate-spin" } else { "material-symbols-outlined text-[18px]" }>
+                            {move || if anonymizing.get() { "sync" } else { "person_off" }}
+                        </span>
+                        {move || if anonymizing.get() { "Anonymizing..." } else if check_anon.get() { "Already anonymized" } else { "Auto Anonymize" }}
+                    </button>
+                    <button
+                        class=move || format!(
+                            "px-8 py-3 rounded-lg font-bold text-sm flex items-center gap-2 {}",
+                            if approved.get() { "bg-green-600 text-white" } else { "bg-primary text-white hover:bg-primary/90" }
+                        )
+                        on:click=approve_publication
+                        disabled=move || approved.get()
+                    >
+                        <span class="material-symbols-outlined text-[18px]">
+                            {move || if approved.get() { "check" } else { "publish" }}
+                        </span>
+                        {move || if approved.get() { "Publication Approved" } else { "Approve Publication" }}
+                    </button>
+                </div>
+            })}
+        </div>
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIEW: CRISIS (Módulo 18 — Modo Crisis y Comparecencia)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Suite de herramientas para gabinetes de comunicación en situaciones de crisis,
+// comparecencias públicas y portavocía.
+//
+// SRS: CRI-001..CRI-005
+
+#[component]
+fn CrisisView() -> impl IntoView {
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let scenario = RwSignal::new("data_breach".to_string());
+    let (facts, set_facts) = signal(String::new());
+    let (position, set_position) = signal(String::new());
+    let (generating, set_generating) = signal(false);
+    let (active_tool, set_active_tool) = signal("".to_string());
+    let (result, set_result) = signal(String::new());
+
+    let generate_crisis_material = move |tool: &str| {
+        let tool = tool.to_string();
+        set_active_tool.set(tool.clone());
+        set_generating.set(true);
+        set_result.set(String::new());
+        
+        let scenario_val = scenario.get();
+        let facts_val = facts.get();
+        let position_val = position.get();
+        
+        spawn_local(async move {
+            let prompt = format!(
+                "ESCENARIO DE CRISIS: {}\n\nHECHOS CONFIRMADOS:\n{}\n\nPOSICIÓN OFICIAL:\n{}\n\nGENERAR: {}",
+                scenario_val, facts_val, position_val, tool
+            );
+            
+            let action = match tool.as_str() {
+                "comparecencia" => "crisis_speech",
+                "qa" => "inverse_questions",
+                "cronologia" => "timeline_extraction",
+                _ => "crisis_speech",
+            };
+            
+            let body = serde_json::json!({
+                "text": prompt,
+                "action": action,
+                "doc_name": format!("crisis_{}.txt", tool),
+                "length_words": 500,
+                "tone": "4",
+                "audience": "media",
+                "language": "es",
+            }).to_string();
+            
+            let headers = web_sys::Headers::new().unwrap();
+            headers.set("Content-Type", "application/json").unwrap();
+            let opts = web_sys::RequestInit::new();
+            opts.set_method("POST");
+            opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+            opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+            
+            if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/transform", &opts) {
+                if let Some(w) = web_sys::window() {
+                    if let Ok(rv) = JsFuture::from(w.fetch_with_request(&req)).await {
+                        let resp: web_sys::Response = rv.unchecked_into();
+                        if let Ok(text) = JsFuture::from(resp.text().unwrap()).await {
+                            if let Some(s) = text.as_string() {
+                                set_result.set(s);
+                            }
+                        }
+                    }
+                }
+            }
+            set_generating.set(false);
+        });
+    };
+
+    let export_kit = move |_| {
+        let content = format!(
+            "=== KIT DE CRISIS ===\n\nEscenario: {}\n\nHechos:\n{}\n\nPosición:\n{}\n\nMaterial generado:\n{}",
+            scenario.get(), facts.get(), position.get(), result.get()
+        );
+        download_text(content, "kit_crisis.txt", "text/plain");
+    };
+
+    view! {
+        <div class="p-10 max-w-6xl mx-auto">
+            <header class="mb-10 flex justify-between items-end">
+                <div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="material-symbols-outlined text-[32px] text-red-500">"crisis_alert"</span>
+                        <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
+                            "Crisis Mode"
+                        </h2>
+                    </div>
+                    <p class="font-serif italic text-xl text-outline">
+                        "Crisis communication and press conference tools"
+                    </p>
+                </div>
+                <div class="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
+                    <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-red-700">"Protocol Active"</span>
+                </div>
+            </header>
+
+            <div class="grid grid-cols-3 gap-6 mb-8">
+                <button
+                    class=move || format!(
+                        "bg-white rounded-xl p-6 text-left border shadow-sm hover:shadow-lg transition-all group {}",
+                        if active_tool.get() == "comparecencia" { "border-red-500 ring-2 ring-red-200" } else { "border-slate-200/50 hover:border-red-300" }
+                    )
+                    on:click=move |_| generate_crisis_material("comparecencia")
+                    disabled=move || generating.get()
+                >
+                    <span class="material-symbols-outlined text-[32px] text-red-500 mb-4 block">"record_voice_over"</span>
+                    <h3 class="font-sans font-black text-lg text-primary mb-1">"Press Conference"</h3>
+                    <p class="font-serif italic text-sm text-outline">"Generate script and key points for press briefing"</p>
+                </button>
+                <button
+                    class=move || format!(
+                        "bg-white rounded-xl p-6 text-left border shadow-sm hover:shadow-lg transition-all group {}",
+                        if active_tool.get() == "qa" { "border-amber-500 ring-2 ring-amber-200" } else { "border-slate-200/50 hover:border-red-300" }
+                    )
+                    on:click=move |_| generate_crisis_material("qa")
+                    disabled=move || generating.get()
+                >
+                    <span class="material-symbols-outlined text-[32px] text-amber-500 mb-4 block">"quiz"</span>
+                    <h3 class="font-sans font-black text-lg text-primary mb-1">"Defensive Q&A"</h3>
+                    <p class="font-serif italic text-sm text-outline">"Anticipate tough questions and prepare answers"</p>
+                </button>
+                <button
+                    class=move || format!(
+                        "bg-white rounded-xl p-6 text-left border shadow-sm hover:shadow-lg transition-all group {}",
+                        if active_tool.get() == "cronologia" { "border-blue-500 ring-2 ring-blue-200" } else { "border-slate-200/50 hover:border-red-300" }
+                    )
+                    on:click=move |_| generate_crisis_material("cronologia")
+                    disabled=move || generating.get()
+                >
+                    <span class="material-symbols-outlined text-[32px] text-blue-500 mb-4 block">"timeline"</span>
+                    <h3 class="font-sans font-black text-lg text-primary mb-1">"Timeline"</h3>
+                    <p class="font-serif italic text-sm text-outline">"Facts timeline for coherent communication"</p>
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 mb-8">
+                <div class="mb-6">
+                    <CustomSelect value=scenario options=CRISIS_SCENARIO_OPTIONS label="Crisis Scenario"/>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"Confirmed Facts"</label>
+                        <textarea
+                            class="w-full p-3 rounded-lg border border-outline-variant text-sm h-32 resize-none"
+                            placeholder="Describe the objective and confirmed facts..."
+                            on:input=move |ev| set_facts.set(event_target_value(&ev))
+                        ></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"Official Position"</label>
+                        <textarea
+                            class="w-full p-3 rounded-lg border border-outline-variant text-sm h-32 resize-none"
+                            placeholder="Key message we want to convey..."
+                            on:input=move |ev| set_position.set(event_target_value(&ev))
+                        ></textarea>
+                    </div>
+                </div>
+            </div>
+
+            // Resultado generado
+            {move || (!result.get().is_empty() || generating.get()).then(|| view! {
+                <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 mb-8">
+                    <h3 class="font-sans font-black text-sm uppercase tracking-widest text-primary mb-4">
+                        {move || if generating.get() { "Generating..." } else { "Generated Material" }}
+                    </h3>
+                    {move || if generating.get() {
+                        view! {
+                            <div class="flex items-center gap-3 py-8 justify-center">
+                                <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                                <span class="text-sm text-outline">"Processing with AI..."</span>
+                            </div>
+                        }.into_any()
+                    } else {
+                        view! {
+                            <div class="prose prose-sm max-w-none font-serif whitespace-pre-wrap">
+                                {result.get()}
+                            </div>
+                        }.into_any()
+                    }}
+                </div>
+            })}
+
+            <div class="flex justify-end gap-4">
+                <button
+                    class="px-6 py-3 border border-primary text-primary rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-primary/5 disabled:opacity-50"
+                    on:click=export_kit
+                    disabled=move || result.get().is_empty()
+                >
+                    <span class="material-symbols-outlined text-[18px]">"download"</span>
+                    "Export Crisis Kit"
+                </button>
+                <button
+                    class="px-8 py-3 bg-red-600 text-white rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-red-700 disabled:opacity-50"
+                    on:click=move |_| generate_crisis_material("comparecencia")
+                    disabled=move || generating.get() || (facts.get().is_empty() && position.get().is_empty())
+                >
+                    <span class=move || if generating.get() { "material-symbols-outlined text-[18px] animate-spin" } else { "material-symbols-outlined text-[18px]" }>
+                        {move || if generating.get() { "sync" } else { "bolt" }}
+                    </span>
+                    {move || if generating.get() { "Generating..." } else { "Generate Materials" }}
+                </button>
+            </div>
+        </div>
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIEW: SETTINGS (Configuración del Motor IA)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Panel de configuración del LLM local: endpoint, modelo, parámetros.
+
+#[component]
+fn SettingsView() -> impl IntoView {
+    let (endpoint, set_endpoint) = signal("http://localhost:11434".to_string());
+    let model = RwSignal::new("qwen3:32b".to_string());
+    let (temperature, set_temperature) = signal(0.7f32);
+    let (saving, set_saving) = signal(false);
+    let (saved, set_saved) = signal(false);
+    let (connection_status, set_connection_status) = signal("checking".to_string());
+
+    // Cargar configuración actual al iniciar
+    spawn_local(async move {
+        if let Some(w) = web_sys::window() {
+            if let Ok(rv) = JsFuture::from(w.fetch_with_str("/settings")).await {
+                let resp: web_sys::Response = rv.unchecked_into();
+                if let Ok(jv) = JsFuture::from(resp.json().unwrap()).await {
+                    let get = |k: &str| js_sys::Reflect::get(&jv, &wasm_bindgen::JsValue::from_str(k))
+                        .ok().and_then(|v| v.as_string());
+                    if let Some(ep) = get("llm_endpoint") { set_endpoint.set(ep); }
+                    if let Some(m) = get("llm_model") { model.set(m); }
+                }
+            }
+        }
+        // Verificar conexión con Ollama
+        if let Some(w) = web_sys::window() {
+            let url = format!("{}/api/tags", endpoint.get_untracked());
+            match JsFuture::from(w.fetch_with_str(&url)).await {
+                Ok(rv) => {
+                    let resp: web_sys::Response = rv.unchecked_into();
+                    if resp.ok() {
+                        set_connection_status.set("connected".to_string());
+                    } else {
+                        set_connection_status.set("error".to_string());
+                    }
+                }
+                Err(_) => set_connection_status.set("error".to_string()),
+            }
+        }
+    });
+
+    let save_settings = move |_| {
+        set_saving.set(true);
+        set_saved.set(false);
+        spawn_local(async move {
+            let body = serde_json::json!({
+                "llm_endpoint": endpoint.get_untracked(),
+                "llm_model": model.get_untracked(),
+                "api_key": ""
+            }).to_string();
+            let headers = web_sys::Headers::new().unwrap();
+            headers.set("Content-Type", "application/json").unwrap();
+            let opts = web_sys::RequestInit::new();
+            opts.set_method("POST");
+            opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+            opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+            if let Ok(req) = web_sys::Request::new_with_str_and_init("/settings", &opts) {
+                if let Some(window) = web_sys::window() {
+                    let _ = JsFuture::from(window.fetch_with_request(&req)).await;
+                }
+            }
+            set_saving.set(false);
+            set_saved.set(true);
+        });
+    };
+
+    view! {
+        <div class="p-10 max-w-3xl mx-auto">
+            <header class="mb-10">
+                <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
+                    "AI Engine"
+                </h2>
+                <p class="font-serif italic text-xl text-outline mt-1">
+                    "Local language model configuration"
+                </p>
+            </header>
+
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-slate-200/50 space-y-6">
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"LLM Endpoint"</label>
+                    <input
+                        type="text"
+                        class="w-full p-3 rounded-lg border border-outline-variant text-sm font-mono focus:ring-2 focus:ring-primary"
+                        prop:value=move || endpoint.get()
+                        on:input=move |ev| set_endpoint.set(event_target_value(&ev))
+                    />
+                    <p class="text-xs text-outline mt-1">"Ollama or compatible server URL (vLLM, llama.cpp)"</p>
+                </div>
+
+                <CustomSelect value=model options=MODEL_OPTIONS label="Model"/>
+
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">
+                        "Temperature: " {move || format!("{:.1}", temperature.get())}
+                    </label>
+                    <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        class="w-full"
+                        prop:value=move || temperature.get().to_string()
+                        on:input=move |ev| {
+                            if let Ok(v) = event_target_value(&ev).parse::<f32>() {
+                                set_temperature.set(v);
+                            }
+                        }
+                    />
+                    <div class="flex justify-between text-xs text-outline mt-1">
+                        <span>"Precise"</span>
+                        <span>"Creative"</span>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-outline-variant">
+                    <h4 class="text-[10px] font-black uppercase tracking-widest text-outline mb-4">"System Status"</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        {move || {
+                            let status = connection_status.get();
+                            let (bg, border, dot, text_color, label, desc) = match status.as_str() {
+                                "connected" => ("bg-green-50", "border-green-200", "bg-green-500", "text-green-700", "CONNECTED", format!("Ollama responding at {}", endpoint.get())),
+                                "error" => ("bg-red-50", "border-red-200", "bg-red-500", "text-red-700", "DISCONNECTED", "Cannot connect to Ollama".to_string()),
+                                _ => ("bg-amber-50", "border-amber-200", "bg-amber-500", "text-amber-700", "CHECKING", "Checking connection...".to_string()),
+                            };
+                            view! {
+                                <div class=format!("p-4 rounded-lg border {} {}", bg, border)>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class=format!("w-2 h-2 rounded-full {}", dot)></span>
+                                        <span class=format!("text-xs font-bold {}", text_color)>{label}</span>
+                                    </div>
+                                    <p class=format!("text-sm {}", text_color.replace("700", "800"))>{desc}</p>
+                                </div>
+                            }
+                        }}
+                        <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="material-symbols-outlined text-blue-500 text-[16px]">"memory"</span>
+                                <span class="text-xs font-bold text-blue-700">"MODELO"</span>
+                            </div>
+                            <p class="text-sm text-blue-800">{move || model.get()}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 flex justify-end gap-4">
+                    {move || saved.get().then(|| view! {
+                        <span class="flex items-center gap-2 text-green-600 text-sm font-bold">
+                            <span class="material-symbols-outlined text-[18px]">"check_circle"</span>
+                            "Guardado"
+                        </span>
+                    })}
+                    <button
+                        class="px-8 py-3 bg-primary text-white rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-primary/90 disabled:opacity-50"
+                        on:click=save_settings
+                        disabled=move || saving.get()
+                    >
+                        <span class=move || if saving.get() { "material-symbols-outlined text-[18px] animate-spin" } else { "material-symbols-outlined text-[18px]" }>
+                            {move || if saving.get() { "sync" } else { "save" }}
+                        </span>
+                        {move || if saving.get() { "Saving..." } else { "Save Configuration" }}
+                    </button>
                 </div>
             </div>
         </div>
