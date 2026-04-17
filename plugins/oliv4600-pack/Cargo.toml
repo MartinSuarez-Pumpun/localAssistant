@@ -50,6 +50,8 @@ features = [
   "SubtleCrypto",
   "Crypto",
   "CryptoKey",
+  "Storage",
+  "DomTokenList",
 ]
 
 [profile.release]

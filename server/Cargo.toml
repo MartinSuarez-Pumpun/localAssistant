@@ -46,6 +46,7 @@ zip = "2"
 printpdf = "0.7"
 rusqlite = { version = "0.31", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
+regex = "1"
 # Ventana nativa con WebView embebido (sin browser externo)
 wry = "0.44"
 tao = "0.30"

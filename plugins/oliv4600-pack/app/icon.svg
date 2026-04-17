@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background: rounded-square with OLIV4600 navy -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#003b65"/>
+      <stop offset="100%" stop-color="#002542"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e7eef8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" in="SourceAlpha"/>
+      <feOffset dy="6"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.35"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- rounded background tile -->
+  <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
+
+  <!-- accent arc (futurist touch) -->
+  <path d="M 56 120 Q 256 60 456 120" stroke="#66a6ea" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.35"/>
+  <path d="M 56 392 Q 256 452 456 392" stroke="#66a6ea" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.35"/>
+
+  <!-- Paper sheet emerging up with lines of text -->
+  <g filter="url(#shadow)">
+    <rect x="168" y="96" width="176" height="132" rx="10" ry="10" fill="url(#paper)"/>
+    <!-- type lines -->
+    <rect x="184" y="120" width="144" height="6" rx="3" fill="#66a6ea" opacity="0.85"/>
+    <rect x="184" y="138" width="120" height="6" rx="3" fill="#c3cfe3"/>
+    <rect x="184" y="156" width="132" height="6" rx="3" fill="#c3cfe3"/>
+    <rect x="184" y="174" width="96"  height="6" rx="3" fill="#c3cfe3"/>
+    <rect x="184" y="192" width="110" height="6" rx="3" fill="#c3cfe3"/>
+  </g>
+
+  <!-- Platen (rodillo) -->
+  <rect x="140" y="226" width="232" height="30" rx="15" ry="15" fill="#66a6ea"/>
+  <rect x="140" y="226" width="232" height="14" rx="7"  ry="7"  fill="#8fbef0"/>
+
+  <!-- Body (typewriter chassis) -->
+  <path d="M 108 258
+           L 404 258
+           Q 420 258 420 274
+           L 420 344
+           Q 420 360 404 360
+           L 108 360
+           Q 92 360 92 344
+           L 92 274
+           Q 92 258 108 258 Z"
+        fill="#ffffff"/>
+  <!-- subtle inner highlight -->
+  <rect x="102" y="266" width="308" height="6" rx="3" fill="#e7eef8"/>
+
+  <!-- Screen / indicator bar (futurist touch) -->
+  <rect x="172" y="278" width="168" height="26" rx="6" fill="#0b1a2e"/>
+  <circle cx="186" cy="291" r="4" fill="#66a6ea"/>
+  <rect x="200" y="288" width="64" height="6" rx="3" fill="#66a6ea" opacity="0.85"/>
+  <rect x="200" y="294" width="40" height="3" rx="1.5" fill="#3c6a9c" opacity="0.7"/>
+  <circle cx="322" cy="291" r="3" fill="#C45911"/>
+
+  <!-- Keys: 3 rows of circular keys -->
+  <g fill="#0b1a2e">
+    <!-- row 1 -->
+    <circle cx="132" cy="324" r="7"/>
+    <circle cx="156" cy="324" r="7"/>
+    <circle cx="180" cy="324" r="7"/>
+    <circle cx="204" cy="324" r="7"/>
+    <circle cx="228" cy="324" r="7"/>
+    <circle cx="252" cy="324" r="7"/>
+    <circle cx="276" cy="324" r="7"/>
+    <circle cx="300" cy="324" r="7"/>
+    <circle cx="324" cy="324" r="7"/>
+    <circle cx="348" cy="324" r="7"/>
+    <circle cx="372" cy="324" r="7"/>
+    <!-- row 2 -->
+    <circle cx="144" cy="344" r="7"/>
+    <circle cx="168" cy="344" r="7"/>
+    <circle cx="192" cy="344" r="7"/>
+    <circle cx="216" cy="344" r="7"/>
+    <circle cx="240" cy="344" r="7"/>
+    <circle cx="264" cy="344" r="7"/>
+    <circle cx="288" cy="344" r="7"/>
+    <circle cx="312" cy="344" r="7"/>
+    <circle cx="336" cy="344" r="7"/>
+    <circle cx="360" cy="344" r="7"/>
+  </g>
+
+  <!-- Accent: carriage return key (highlight) -->
+  <rect x="378" y="318" width="22" height="14" rx="4" fill="#C45911"/>
+
+  <!-- Feet / base -->
+  <rect x="116" y="360" width="280" height="10" rx="5" fill="#001a30"/>
+  <circle cx="140" cy="380" r="8" fill="#001a30"/>
+  <circle cx="372" cy="380" r="8" fill="#001a30"/>
+
+  <!-- Tiny brand dot (top-right) -->
+  <circle cx="420" cy="92" r="10" fill="#66a6ea" opacity="0.9"/>
+  <circle cx="420" cy="92" r="5"  fill="#002542"/>
+</svg>

@@ -106,8 +106,8 @@ Replace the static `TRANSFORMATIONS` const with a `Resource` that fetches
 GET `/api/transformations` on mount. Render the table from real data.
 Show "No transformations yet" if the list is empty.
 **Files**: `plugins/oliv4600-pack/src/lib.rs`
-**Acceptance**: Dashboard table shows real transformations from the database.
-**Note**: Already implemented. Dashboard fetches from /api/transformations using spawn_local + RwSignal. Updated transformations.rs to return ApiResponse wrapper format.
+**Acceptance**: Dashboard shows real transformation history.
+**Note**: Already implemented. Uses RwSignal + spawn_local to fetch /api/transformations?limit=20. ApiTransform struct parses response. Table shows loading, empty, and data states with action badges.
 
 ---
 

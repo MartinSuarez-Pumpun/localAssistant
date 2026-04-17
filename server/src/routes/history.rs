@@ -30,9 +30,7 @@ fn default_limit() -> u32 { 50 }
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/transformations", get(list_transformations))
         .route("/api/documents",       get(list_documents))
-        .route("/api/audit",           get(list_audit))
         .route("/api/purge",           delete(purge_all))
 }
 

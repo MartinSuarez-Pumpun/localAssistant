@@ -200,6 +200,96 @@ struct DocumentCtx {
     pending_action: RwSignal<Option<String>>,
 }
 
+// ─── i18n: Translations from JSON files ──────────────────────────────────────
+// Translations are loaded from translations/en.json and translations/es.json
+// This allows easy management and extension of language support.
+
+use serde_json::{json, Value};
+
+fn get_translation_json(lang: &str) -> Value {
+    match lang {
+        "en" => include_str!("../translations/en.json"),
+        _ => include_str!("../translations/es.json"),
+    }
+    .parse::<Value>()
+    .unwrap_or(json!({}))
+}
+
+fn t(lang: &str, key: &str) -> String {
+    let translations = get_translation_json(lang);
+    let parts: Vec<&str> = key.split('.').collect();
+    
+    let mut current = &translations;
+    for part in parts {
+        if let Some(next) = current.get(part) {
+            current = next;
+        } else {
+            return key.to_string();
+        }
+    }
+    
+    current.as_str().unwrap_or(key).to_string()
+}
+
+// ─── AppSettings: Theme + Language (persisted in localStorage) ───────────────
+// Pequeño store global para preferencias de UI. Se lee al arrancar de
+// `localStorage` y cualquier cambio se escribe de vuelta.
+
+#[derive(Clone, Copy)]
+struct AppPrefs {
+    dark:     RwSignal<bool>,
+    language: RwSignal<String>, // "es" | "en"
+}
+
+impl AppPrefs {
+    fn new() -> Self {
+        // Lee localStorage
+        let (init_dark, init_lang) = if let Some(ls) = web_sys::window()
+            .and_then(|w| w.local_storage().ok().flatten())
+        {
+            let d = ls.get_item("oliv:dark").ok().flatten()
+                .map(|v| v == "1" || v == "true").unwrap_or(false);
+            let l = ls.get_item("oliv:lang").ok().flatten()
+                .unwrap_or_else(|| "es".to_string());
+            (d, l)
+        } else { (false, "es".to_string()) };
+
+        let prefs = Self {
+            dark:     RwSignal::new(init_dark),
+            language: RwSignal::new(init_lang),
+        };
+
+        // Aplica clase `dark` inmediatamente al <html>
+        apply_theme_class(init_dark);
+
+        // Persist & aplica en cada cambio
+        Effect::new(move |_| {
+            let d = prefs.dark.get();
+            apply_theme_class(d);
+            if let Some(ls) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+                let _ = ls.set_item("oliv:dark", if d { "1" } else { "0" });
+            }
+        });
+        Effect::new(move |_| {
+            let l = prefs.language.get();
+            if let Some(ls) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+                let _ = ls.set_item("oliv:lang", &l);
+            }
+        });
+
+        prefs
+    }
+}
+
+fn apply_theme_class(dark: bool) {
+    if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
+        if let Some(html) = doc.document_element() {
+            let cl = html.class_list();
+            if dark { let _ = cl.add_1("dark"); } else { let _ = cl.remove_1("dark"); }
+        }
+    }
+}
+
 impl DocumentCtx {
     fn new() -> Self {
         Self {
@@ -305,12 +395,12 @@ fn upload_and_load(file: web_sys::File, ctx: DocumentCtx, set_active_view: Write
 
 fn run_transform(
     ctx: DocumentCtx, action: String, length_words: u32, tone: u32,
-    audience: String, language: String,
+    audience: String, language: String, ui_lang: String,
 ) {
     spawn_local(async move {
         ctx.processing.set(true);
         ctx.output.set(String::new());
-        ctx.output_label.set(action_label(&action).to_string());
+        ctx.output_label.set(action_label(&ui_lang, &action));
         let body = serde_json::json!({
             "text":         ctx.text.get_untracked(),
             "action":       action,
@@ -429,77 +519,9 @@ fn copy_to_clipboard(text: String) {
 
 // ─── Helper: etiqueta legible de una acción ───────────────────────────────────
 
-fn action_label(action: &str) -> &'static str {
-    match action {
-        "executive_summary"     => "Executive Summary",
-        "technical_summary"     => "Technical Summary",
-        "divulgative_summary"   => "Divulgative Summary",
-        "bullet_summary"        => "Key Points",
-        "chronological_summary" => "Chronological Summary",
-        "conclusions_summary"   => "Conclusions & Recommendations",
-        "briefing_2min"         => "2-min Briefing",
-        "press_release"         => "Press Release",
-        "headlines"             => "Headlines",
-        "linkedin_post"         => "LinkedIn Post",
-        "twitter_thread"        => "Twitter/X Thread",
-        "blog_article"          => "Blog Article",
-        "instagram_post"        => "Instagram Post",
-        "email_newsletter"      => "Email / Newsletter",
-        "speech"                => "Speech",
-        "faqs"                  => "FAQs",
-        "one_pager"             => "One-Pager / Fact Sheet",
-        "key_quotes"            => "Key Quotes",
-        "official_report"       => "Official Report",
-        "meeting_minutes"       => "Meeting Minutes",
-        "administrative_resolution" => "Administrative Resolution",
-        "internal_memo"         => "Internal Memo",
-        "allegations_response"  => "Allegations / Negotiation",
-        "extract_commitments"   => "Verifiable Commitments",
-        "rewrite_formal"        => "Formal Rewrite",
-        "rewrite_shorter"       => "Concise Rewrite",
-        "rewrite_persuasive"    => "Persuasive Rewrite",
-        "rewrite_clearer"       => "Clearer Rewrite",
-        "detect_redundancies"   => "Detect Redundancies",
-        "translate_language"    => "Translation",
-        "sentiment_analysis"    => "Sentiment Analysis",
-        "grammar_check"         => "Grammar Check",
-        "simplify"              => "Simplify (Plain Language)",
-        "detect_inconsistencies"=> "Detect Inconsistencies",
-        "reformulate_paragraph" => "Reformulate Paragraph",
-        "detect_ambiguities"    => "Detect Ambiguities",
-        "improve_suggestions"   => "Improvement Suggestions",
-        "readability_analysis"  => "Readability Analysis",
-        "detect_evasive_language"=> "Evasive Language",
-        "semantic_versioning"   => "Semantic Versioning",
-        "merge_documents"       => "Merge Documents",
-        "semantic_diff"         => "Semantic Diff",
-        "document_intersection" => "Document Intersection",
-        "detect_contradictions" => "Detect Contradictions",
-        "versions_compare"      => "Compare Versions",
-        "inverse_questions"     => "Inverse Questions (Editor)",
-        "press_release_check"   => "Press Release Check",
-        "validation_questions"  => "Validation Checklist",
-        "ner_extraction"        => "Entity Extraction (NER)",
-        "keywords_extraction"   => "Keywords & Categories",
-        "event_timeline"        => "Event Timeline",
-        "impact_analysis"       => "Impact Analysis",
-        "verifiability_check"   => "Verifiability Check",
-        "evidence_gaps"         => "Evidence Gaps",
-        "traceability_map"      => "Traceability Map",
-        "anonymize"             => "Anonymization / Redaction",
-        "preflight_check"       => "Document Preflight",
-        "public_version"        => "Public Version",
-        "rgpd_check"            => "GDPR/Privacy Check",
-        "style_linting"         => "Document Linting",
-        "reader_simulation"     => "Reader Simulation",
-        "generate_from_form"    => "Generate from Form",
-        "generate_file_package" => "File Package",
-        "crisis_press_questions"=> "Press Conference Simulation",
-        "crisis_communication"  => "Crisis Communication Kit",
-        "argumentario"          => "Talking Points",
-        "difficult_questions_simulator" => "Difficult Questions Simulator",
-        _                       => "Transform",
-    }
+fn action_label(lang: &str, action: &str) -> String {
+    let key = format!("actions.{}", action);
+    t(lang, &key)
 }
 
 // ─── Helper: descarga un string como archivo (EXO-001, EXO-005) ──────────────
@@ -618,10 +640,10 @@ pub fn main() {
 #[derive(Clone, Copy)]
 struct ModalState {
     visible: RwSignal<bool>,
-    title: RwSignal<&'static str>,
-    message: RwSignal<&'static str>,
+    title: RwSignal<String>,
+    message: RwSignal<String>,
     modal_type: RwSignal<ModalType>,
-    confirm_action: RwSignal<&'static str>,
+    confirm_action: RwSignal<String>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -636,42 +658,42 @@ impl ModalState {
     fn new() -> Self {
         Self {
             visible: RwSignal::new(false),
-            title: RwSignal::new(""),
-            message: RwSignal::new(""),
+            title: RwSignal::new(String::new()),
+            message: RwSignal::new(String::new()),
             modal_type: RwSignal::new(ModalType::Alert),
-            confirm_action: RwSignal::new(""),
+            confirm_action: RwSignal::new(String::new()),
         }
     }
 
-    fn alert(&self, title: &'static str, message: &'static str) {
-        self.title.set(title);
-        self.message.set(message);
+    fn alert(&self, title: &str, message: &str) {
+        self.title.set(title.to_string());
+        self.message.set(message.to_string());
         self.modal_type.set(ModalType::Alert);
-        self.confirm_action.set("");
+        self.confirm_action.set(String::new());
         self.visible.set(true);
     }
 
-    fn success(&self, title: &'static str, message: &'static str) {
-        self.title.set(title);
-        self.message.set(message);
+    fn success(&self, title: &str, message: &str) {
+        self.title.set(title.to_string());
+        self.message.set(message.to_string());
         self.modal_type.set(ModalType::Success);
-        self.confirm_action.set("");
+        self.confirm_action.set(String::new());
         self.visible.set(true);
     }
 
-    fn error(&self, title: &'static str, message: &'static str) {
-        self.title.set(title);
-        self.message.set(message);
+    fn error(&self, title: &str, message: &str) {
+        self.title.set(title.to_string());
+        self.message.set(message.to_string());
         self.modal_type.set(ModalType::Error);
-        self.confirm_action.set("");
+        self.confirm_action.set(String::new());
         self.visible.set(true);
     }
 
-    fn confirm(&self, title: &'static str, message: &'static str, action: &'static str) {
-        self.title.set(title);
-        self.message.set(message);
+    fn confirm(&self, title: &str, message: &str, action: &str) {
+        self.title.set(title.to_string());
+        self.message.set(message.to_string());
         self.modal_type.set(ModalType::Confirm);
-        self.confirm_action.set(action);
+        self.confirm_action.set(action.to_string());
         self.visible.set(true);
     }
 
@@ -862,9 +884,10 @@ const ACTION_GROUPS: &[(&str, &[(&str, &str)])] = &[
 fn ActionSelector(
     value: RwSignal<String>,
 ) -> impl IntoView {
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
     let (open, set_open) = signal(false);
 
-    let selected_label = move || action_label(&value.get());
+    let selected_label = move || action_label(&prefs.language.get(), &value.get());
 
     view! {
         <div class="relative">
@@ -1523,6 +1546,18 @@ fn App() -> impl IntoView {
     let (active_nav, set_active_nav) = signal("Projects");
     let (active_view, set_active_view) = signal(View::Dashboard);
     let (drag_over, set_drag_over)     = signal(false);
+    // Sidebar open state (for mobile drawer). On lg: always visible.
+    let sidebar_open = RwSignal::new(false);
+
+    // Auto-close mobile drawer when view changes
+    Effect::new(move |_| {
+        let _ = active_view.get();
+        sidebar_open.set(false);
+    });
+
+    // Preferencias globales (tema / idioma) persistidas en localStorage
+    let prefs = AppPrefs::new();
+    provide_context(prefs);
 
     // Contexto de documento compartido por todas las vistas
     let doc_ctx = DocumentCtx::new();
@@ -1542,9 +1577,16 @@ fn App() -> impl IntoView {
             <ModalOverlay/>
             // File upload modal
             <FileUploadModal/>
-            <Sidebar active_view set_active_view/>
-            <div class="flex-1 flex flex-col overflow-hidden">
-                <TopBar active_view set_active_view/>
+            // Mobile backdrop (only when sidebar open on small screens)
+            {move || sidebar_open.get().then(|| view! {
+                <div
+                    class="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                    on:click=move |_| sidebar_open.set(false)
+                ></div>
+            })}
+            <Sidebar active_view set_active_view sidebar_open/>
+            <div class="flex-1 flex flex-col overflow-hidden min-w-0">
+                <TopBar active_view set_active_view sidebar_open/>
                 // Chat y Editor usan layout flex con scroll interno;
                 // el resto hace scroll en este contenedor.
                 <main class=move || match active_view.get() {
@@ -1568,7 +1610,7 @@ fn App() -> impl IntoView {
                         View::Editor        => view! { <EditorView set_active_view/> }.into_any(),
                         View::Analysis      => view! { <AnalysisView/> }.into_any(),
                         View::Chat          => view! { <ChatView/> }.into_any(),
-                        View::Pipeline      => view! { <PipelineView/> }.into_any(),
+                        View::Pipeline      => view! { <PipelineView set_active_view/> }.into_any(),
                         View::Projects      => view! { <ProjectsView set_active_view/> }.into_any(),
                         View::Archive       => view! { <ArchiveView set_active_view/> }.into_any(),
                         View::Audit         => view! { <AuditView/> }.into_any(),
@@ -1603,7 +1645,10 @@ fn App() -> impl IntoView {
 fn Sidebar(
     active_view:     ReadSignal<View>,
     set_active_view: WriteSignal<View>,
+    sidebar_open:    RwSignal<bool>,
 ) -> impl IntoView {
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
+    
     // ── Live recent documents from SQLite ─────────────────────────────────────
     // JsFuture is !Send (uses Rc internally), so we can't use Resource::new.
     // Instead: populate a signal via spawn_local (single-threaded WASM executor).
@@ -1631,51 +1676,62 @@ fn Sidebar(
         recent_docs.set(Some(projects));
     });
 
+    let aside_class = move || format!(
+        "bg-[#002542] w-[260px] h-full flex flex-col py-6 px-4 shrink-0 \
+         fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 \
+         lg:static lg:translate-x-0 lg:z-auto {}",
+        if sidebar_open.get() { "translate-x-0" } else { "-translate-x-full lg:translate-x-0" }
+    );
+
+    // Helper to close sidebar after selecting a view on mobile
+    let close_on_select = move || sidebar_open.set(false);
+
     view! {
-        <aside class="bg-[#002542] w-[280px] h-full flex flex-col py-8 px-4 shrink-0">
+        <aside class=aside_class>
             // Clicking the brand mark returns to the Dashboard home screen.
             <div
                 class="mb-10 px-2 cursor-pointer select-none"
                 on:click=move |_| set_active_view.set(View::Dashboard)
             >
-                <h1 class="text-2xl font-black tracking-tighter text-white">"OLIV4600"</h1>
+                <h1 class="text-2xl font-black tracking-tighter text-white">{t(&prefs.language.get(), "sidebar.brand")}</h1>
                 <p class="uppercase text-[11px] font-bold text-[#66a6ea] tracking-tight">
-                    "Sovereign Intelligence"
+                    {t(&prefs.language.get(), "sidebar.tagline")}
                 </p>
             </div>
 
-            <nav class="flex-1 space-y-6 overflow-y-auto">
-                <NavSection label="Main">
-                    <SidebarNavBtn icon="home" label="Dashboard" view=View::Dashboard active_view set_active_view/>
-                    <SidebarNavBtn icon="folder_open" label="Projects" view=View::Projects active_view set_active_view/>
-                    <SidebarNavBtn icon="edit_note" label="Templates" view=View::Templates active_view set_active_view/>
-                    <SidebarNavBtn icon="inventory_2" label="Library" view=View::Archive active_view set_active_view/>
-                    <SidebarNavBtn icon="memory" label="AI Engine" view=View::Settings active_view set_active_view/>
+            <nav class="flex-1 space-y-6 overflow-hidden">
+                <NavSection label={t(&prefs.language.get(), "nav.main").leak()}>
+                    <SidebarNavBtn icon="home" label={t(&prefs.language.get(), "nav.dashboard").leak()} view=View::Dashboard active_view set_active_view/>
+                    <SidebarNavBtn icon="folder_open" label={t(&prefs.language.get(), "nav.projects").leak()} view=View::Projects active_view set_active_view/>
+                    <SidebarNavBtn icon="edit_note" label={t(&prefs.language.get(), "nav.templates").leak()} view=View::Templates active_view set_active_view/>
+                    <SidebarNavBtn icon="inventory_2" label={t(&prefs.language.get(), "nav.library").leak()} view=View::Archive active_view set_active_view/>
+                    <SidebarNavBtn icon="memory" label={t(&prefs.language.get(), "nav.ai_engine").leak()} view=View::Settings active_view set_active_view/>
                 </NavSection>
 
-                <NavSection label="Tools">
-                    <SidebarNavBtn icon="edit_document" label="Editor" view=View::Editor active_view set_active_view/>
-                    <SidebarNavBtn icon="analytics" label="Analysis" view=View::Analysis active_view set_active_view/>
-                    <SidebarNavBtn icon="forum" label="Chat" view=View::Chat active_view set_active_view/>
-                    <SidebarNavBtn icon="account_tree" label="Pipeline" view=View::Pipeline active_view set_active_view/>
+                <NavSection label={t(&prefs.language.get(), "nav.tools").leak()}>
+                    <SidebarNavBtn icon="edit_document" label={t(&prefs.language.get(), "nav.editor").leak()} view=View::Editor active_view set_active_view/>
+                    <SidebarNavBtn icon="analytics" label={t(&prefs.language.get(), "nav.analysis").leak()} view=View::Analysis active_view set_active_view/>
+                    <SidebarNavBtn icon="forum" label={t(&prefs.language.get(), "nav.chat").leak()} view=View::Chat active_view set_active_view/>
+                    <SidebarNavBtn icon="account_tree" label={t(&prefs.language.get(), "nav.pipeline").leak()} view=View::Pipeline active_view set_active_view/>
                 </NavSection>
 
-                <NavSection label="Advanced">
-                    <SidebarNavBtn icon="fact_check" label="Verifiability" view=View::Verifiability active_view set_active_view/>
-                    <SidebarNavBtn icon="shield" label="Publication" view=View::Publication active_view set_active_view/>
-                    <SidebarNavBtn icon="crisis_alert" label="Crisis Mode" view=View::Crisis active_view set_active_view/>
-                    <SidebarNavBtn icon="assignment" label="Guided Form" view=View::GuidedForm active_view set_active_view/>
+                <NavSection label={t(&prefs.language.get(), "nav.advanced").leak()}>
+                    <SidebarNavBtn icon="fact_check" label={t(&prefs.language.get(), "nav.verifiability").leak()} view=View::Verifiability active_view set_active_view/>
+                    <SidebarNavBtn icon="shield" label={t(&prefs.language.get(), "nav.publication").leak()} view=View::Publication active_view set_active_view/>
+                    <SidebarNavBtn icon="crisis_alert" label={t(&prefs.language.get(), "nav.crisis").leak()} view=View::Crisis active_view set_active_view/>
+                    <SidebarNavBtn icon="assignment" label={t(&prefs.language.get(), "nav.guided_form").leak()} view=View::GuidedForm active_view set_active_view/>
+                    <SidebarNavBtn icon="history" label={t(&prefs.language.get(), "nav.audit").leak()} view=View::Audit active_view set_active_view/>
                 </NavSection>
 
-                <NavSection label="Recent Projects">
+                <NavSection label={t(&prefs.language.get(), "nav.recent_projects").leak()}>
                     <div class="space-y-0.5 px-2">
                         {move || match recent_docs.get() {
                             None => view! {
-                                <div class="text-[12px] text-slate-500 italic py-1 px-2">"Loading..."</div>
+                                <div class="text-[12px] text-slate-500 italic py-1 px-2">{t(&prefs.language.get(), "sidebar.loading")}</div>
                             }.into_any(),
                             Some(docs) if docs.is_empty() => view! {
                                 <div class="text-[12px] text-slate-500 italic py-1 px-2">
-                                    "No recent documents"
+                                    {t(&prefs.language.get(), "sidebar.no_recent")}
                                 </div>
                             }.into_any(),
                             Some(docs) => docs.into_iter().map(|d| {
@@ -1729,9 +1785,21 @@ fn Sidebar(
                 //   c) Guided Form Constructor (Module 16 — GUI-001) — structured fields
                 //      whose values are injected into the LLM prompt as a virtual source doc
                 // On completion, load document into global context → navigate to View::Editor.
-                <button class="w-full bg-[#003b65] text-[#66a6ea] py-3 px-4 rounded-lg font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#004d80] transition-colors active:scale-[0.98]">
+                <button
+                    class="w-full bg-[#003b65] text-[#66a6ea] py-3 px-4 rounded-lg font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#004d80] transition-colors active:scale-[0.98]"
+                    on:click=move |_| {
+                        let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+                        ctx.text.set(String::new());
+                        ctx.filename.set(String::new());
+                        ctx.word_count.set(0);
+                        ctx.doc_hash.set(String::new());
+                        ctx.output.set(String::new());
+                        ctx.output_label.set(String::new());
+                        set_active_view.set(View::Dashboard);
+                    }
+                >
                     <span class="material-symbols-outlined text-[18px]">"add"</span>
-                    "New Document"
+                    {t(&prefs.language.get(), "sidebar.new_document")}
                 </button>
 
                 // ── Status Ribbon ─────────────────────────────────────────────
@@ -1746,8 +1814,8 @@ fn Sidebar(
                 // { llm_model, llm_endpoint }. Add a heartbeat ping (HEAD /api/chat) to
                 // confirm the model is actually loaded; show a spinner if warming up.
                 <div class="flex flex-col gap-2 border-t border-slate-700/50 pt-4">
-                    <StatusRow icon="shield" color="text-[#66a6ea]" label="SYSTEM OFFLINE"/>
-                    <StatusRowPulse icon="bolt" label="Qwen 3.5 Active"/>
+                    <StatusRow icon="shield" color="text-[#66a6ea]" label={t(&prefs.language.get(), "sidebar.system_offline").leak()}/>
+                    <StatusRowPulse icon="bolt" label={t(&prefs.language.get(), "sidebar.model_active").leak()}/>
                 </div>
             </div>
         </aside>
@@ -1880,20 +1948,30 @@ fn SidebarNavBtn(
 fn TopBar(
     active_view:     ReadSignal<View>,
     set_active_view: WriteSignal<View>,
+    sidebar_open:    RwSignal<bool>,
 ) -> impl IntoView {
     view! {
-        <header class="bg-white/85 backdrop-blur-xl flex justify-between items-center h-16 px-8 shrink-0 border-b border-slate-200/50 shadow-sm sticky top-0 z-40">
-            <div class="flex items-center gap-8">
-                <div class="relative flex items-center">
+        <header class="bg-white/85 backdrop-blur-xl flex justify-between items-center h-16 px-4 sm:px-6 lg:px-8 shrink-0 border-b border-slate-200/50 shadow-sm sticky top-0 z-40 gap-3">
+            <div class="flex items-center gap-3 sm:gap-6 lg:gap-8 min-w-0 flex-1">
+                // Hamburger: only visible below lg
+                <button
+                    class="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+                    on:click=move |_| sidebar_open.update(|v| *v = !*v)
+                    aria-label="Toggle menu"
+                >
+                    <span class="material-symbols-outlined">"menu"</span>
+                </button>
+                // Search: hidden on xs, narrow on md, full on lg+
+                <div class="relative hidden md:flex items-center flex-1 max-w-xs">
                     <span class="material-symbols-outlined absolute left-3 text-slate-400 text-[20px]">"search"</span>
-                    // TODO: wire to GET /api/search?q={value} with 300ms debounce
                     <input
-                        class="pl-10 pr-4 py-2 bg-surf-low border-none rounded-lg text-sm w-64 focus:outline-none focus:ring-1 focus:ring-primary"
+                        class="w-full pl-10 pr-4 py-2 bg-surf-low border-none rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                         placeholder="Search archive..."
                         type="text"
                     />
                 </div>
-                <nav class="flex gap-6">
+                // Nav tabs: hidden below xl (too tight otherwise)
+                <nav class="hidden xl:flex gap-6">
                     <TopTab label="Editor"        view=View::Editor        active=active_view set_active=set_active_view/>
                     <TopTab label="Analysis"      view=View::Analysis      active=active_view set_active=set_active_view/>
                     <TopTab label="Chat"          view=View::Chat          active=active_view set_active=set_active_view/>
@@ -1901,20 +1979,30 @@ fn TopBar(
                     <TopTab label="Audit"         view=View::Audit         active=active_view set_active=set_active_view/>
                 </nav>
             </div>
-            <div class="flex items-center gap-4">
-                <div class="flex gap-2 mr-4 border-r border-slate-200 pr-4">
-                    // TODO (SEC-005): history_edu icon → opens the Audit Log (View::Audit),
-                    // showing the last N operations with timestamps and SHA-256 output hashes.
-                    <IconBtn icon="shield"/>
-                    <IconBtn icon="history_edu"/>
-                    // TODO: settings icon → opens the Settings panel (config_panel equivalent)
-                    // for LLM endpoint, model, org identity (PLT-002), and export preferences.
-                    <IconBtn icon="settings"/>
+            <div class="flex items-center gap-2 sm:gap-4 shrink-0">
+                <div class="hidden sm:flex gap-1 sm:gap-2 sm:mr-2 lg:mr-4 sm:border-r sm:border-slate-200 sm:pr-2 lg:pr-4">
+                    <button
+                        class="p-2 text-slate-500 hover:bg-surf-cont rounded-lg transition-colors"
+                        on:click=move |_| set_active_view.set(View::Verifiability)
+                        aria-label="Verifiability"
+                    >
+                        <span class="material-symbols-outlined">"shield"</span>
+                    </button>
+                    <button
+                        class="p-2 text-slate-500 hover:bg-surf-cont rounded-lg transition-colors"
+                        on:click=move |_| set_active_view.set(View::Audit)
+                        aria-label="Audit log"
+                    >
+                        <span class="material-symbols-outlined">"history_edu"</span>
+                    </button>
+                    <button
+                        class="p-2 text-slate-500 hover:bg-surf-cont rounded-lg transition-colors"
+                        on:click=move |_| set_active_view.set(View::Settings)
+                        aria-label="Settings"
+                    >
+                        <span class="material-symbols-outlined">"settings"</span>
+                    </button>
                 </div>
-                // TODO: context-sensitive action — see comment above TopBar component
-                <button class="px-4 py-2 bg-primary text-white rounded-lg font-bold text-sm hover:bg-[#003b65] transition-colors active:opacity-80">
-                    "Execute Process"
-                </button>
             </div>
         </header>
     }
@@ -1971,6 +2059,7 @@ fn DashboardView(
     set_drag_over:   WriteSignal<bool>,
 ) -> impl IntoView {
     let ctx            = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let prefs          = use_context::<AppPrefs>().expect("AppPrefs");
     let file_input_ref = NodeRef::<leptos::html::Input>::new();
 
     // ── Live transformations from SQLite ──────────────────────────────────────
@@ -2011,7 +2100,7 @@ fn DashboardView(
                         <span class="material-symbols-outlined text-[32px]">"upload_file"</span>
                     </div>
                     <h2 class="font-serif italic text-3xl text-primary mb-2">
-                        "Drop a document or start writing"
+                        {move || t(&prefs.language.get(), "dashboard.drop_or_write")}
                     </h2>
                     <p class="text-on-surf-var text-sm mb-8">
                         "100% local processing. Your data never leaves this device."
@@ -2039,7 +2128,7 @@ fn DashboardView(
                             }
                         >
                             <span class="material-symbols-outlined text-[18px]">"add_circle"</span>
-                            "Nuevo Documento"
+                            {move || t(&prefs.language.get(), "sidebar.new_document")}
                         </button>
                     </div>
                 </div>
@@ -2082,21 +2171,21 @@ fn DashboardView(
                     </div>
                 </div>
                 <ActionCard icon="summarize" icon_color="text-action"
-                    title="Summarize" desc="Executive distillation of core concepts."
+                    title={t(&prefs.language.get(), "actions.executive_summary").leak()} desc={t(&prefs.language.get(), "templates.executive_distillation").leak()}
                     on_click=move || {
                         ctx.pending_action.set(Some("executive_summary".to_string()));
                         set_active_view.set(View::Editor);
                     }
                 />
                 <ActionCard icon="campaign" icon_color="text-action"
-                    title="Press Release" desc="Draft professional public communications."
+                    title={t(&prefs.language.get(), "actions.press_release").leak()} desc={t(&prefs.language.get(), "templates.draft_public").leak()}
                     on_click=move || {
                         ctx.pending_action.set(Some("press_release".to_string()));
                         set_active_view.set(View::Editor);
                     }
                 />
                 <ActionCard icon="forum" icon_color="text-[#66a6ea]"
-                    title="Chat with Doc" desc="Direct query dialogue with your source text."
+                    title={t(&prefs.language.get(), "chat.chat_with_doc").leak()} desc={t(&prefs.language.get(), "chat.subtitle").leak()}
                     on_click=move || set_active_view.set(View::Chat)
                 />
             </div>
@@ -2112,10 +2201,10 @@ fn DashboardView(
                 <div class="flex justify-between items-end">
                     <div>
                         <h3 class="font-sans font-black text-xl text-primary tracking-tighter">
-                            "Recent Transformations"
+                            {move || t(&prefs.language.get(), "dashboard.recent_transformations")}
                         </h3>
                         <p class="font-serif italic text-on-surf-var text-sm">
-                            "History of processed intelligence"
+                            {move || t(&prefs.language.get(), "dashboard.history")}
                         </p>
                     </div>
                     <button
@@ -2143,7 +2232,7 @@ fn DashboardView(
                                 None => view! {
                                     <tr>
                                         <td colspan="4" class="px-6 py-8 text-center text-xs text-slate-400 italic">
-                                            "Loading history..."
+                                            {move || t(&prefs.language.get(), "projects.loading_history")}
                                         </td>
                                     </tr>
                                 }.into_any(),
@@ -2202,35 +2291,140 @@ fn DashboardView(
                             class="px-4 py-2 text-primary border border-primary rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-primary hover:text-white transition-all"
                             on:click=move |_| set_active_view.set(View::Audit)
                         >
-                            "Export Audit Log"
+                            {move || t(&prefs.language.get(), "audit.export")}
                         </button>
                         <button
                             class="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-red-700 transition-all"
                             on:click=move |_| {
                                 let modal = use_context::<ModalState>().expect("ModalState");
+                                let lang = prefs.language.get();
                                 modal.confirm(
-                                    "Emergency Purge",
-                                    "Are you sure? This will delete ALL local data permanently.",
+                                    &t(&lang, "audit.emergency_purge"),
+                                    &t(&lang, "audit.confirm_delete"),
                                     "purge"
                                 );
                             }
                         >
-                            "Emergency Purge"
+                            {move || t(&prefs.language.get(), "audit.emergency_purge")}
                         </button>
                     </div>
                 </div>
             </footer>
         </section>
 
-        // Floating Action Button — visible when scrolled down, shortcut to "New Document"
-        // TODO: conditionally show only when the user has scrolled past the drop zone.
-        <div class="fixed bottom-8 right-8 z-50">
-            <button
-                class="w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all"
-                on:click=move |_| set_active_view.set(View::Editor)
-            >
-                <span class="material-symbols-outlined text-[28px]">"add"</span>
-            </button>
+        // Floating Action Button — radial quick-actions menu
+        <FabRadialMenu set_active_view/>
+    }
+}
+
+// ─── FAB Radial Menu ──────────────────────────────────────────────────────────
+// Floating "+" button that expands into a bouquet of bubble shortcuts arranged
+// in a quarter-circle arc. Each bubble is a quick action that routes to the
+// most useful views. Animation uses staggered transitions + scale + rotate.
+#[component]
+fn FabRadialMenu(set_active_view: WriteSignal<View>) -> impl IntoView {
+    let open = RwSignal::new(false);
+
+    // (icon, label, tint bg class, tint text class, view)
+    let actions: Vec<(&'static str, &'static str, &'static str, &'static str, View)> = vec![
+        ("edit_note",     "New Document",  "bg-white",         "text-primary",     View::Editor),
+        ("forum",         "AI Chat",       "bg-white",         "text-blue-600",    View::Chat),
+        ("style",         "Templates",     "bg-white",         "text-purple-600",  View::Templates),
+        ("analytics",     "Analysis",      "bg-white",         "text-emerald-600", View::Analysis),
+        ("verified",      "Verifiability", "bg-white",         "text-green-600",   View::Verifiability),
+        ("crisis_alert",  "Crisis Mode",   "bg-white",         "text-red-600",     View::Crisis),
+    ];
+
+    // Quarter-circle arc from 180° (left) to 270° (up). Radius in pixels.
+    let count  = actions.len() as f32;
+    let radius = 140.0_f32;
+    let start  = std::f32::consts::PI;                // 180°
+    let end    = 3.0 * std::f32::consts::PI / 2.0;    // 270°
+
+    view! {
+        // Backdrop when open
+        {move || open.get().then(|| view! {
+            <div
+                class="fixed inset-0 bg-black/30 backdrop-blur-[2px] z-40 transition-opacity duration-300"
+                on:click=move |_| open.set(false)
+            ></div>
+        })}
+
+        <div class="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50">
+            // Radial bubbles container
+            <div class="relative w-14 h-14">
+                {let total = actions.len();
+                 actions.into_iter().enumerate().map(|(i, (icon, label, bg, fg, target))| {
+                    let angle = start + (end - start) * (i as f32) / (count - 1.0);
+                    let dx    = (angle.cos() * radius).round() as i32;
+                    let dy    = (angle.sin() * radius).round() as i32;
+                    let open_delay  = i * 45;
+                    let close_delay = (total - 1 - i) * 25;
+
+                    let style_fn = move || {
+                        if open.get() {
+                            format!(
+                                "transform: translate({dx}px, {dy}px) scale(1) rotate(0deg); \
+                                 opacity: 1; transition: all 420ms cubic-bezier(0.34, 1.56, 0.64, 1) {open_delay}ms;"
+                            )
+                        } else {
+                            format!(
+                                "transform: translate(0px, 0px) scale(0.2) rotate(-90deg); \
+                                 opacity: 0; pointer-events: none; \
+                                 transition: all 260ms cubic-bezier(0.4, 0, 0.2, 1) {close_delay}ms;"
+                            )
+                        }
+                    };
+
+                    view! {
+                        <div
+                            class="absolute top-0 left-0 w-14 h-14 flex items-center justify-center"
+                            style=style_fn
+                        >
+                            <button
+                                class=format!(
+                                    "group relative w-14 h-14 {bg} rounded-full shadow-xl border border-slate-200/70 \
+                                     flex items-center justify-center hover:scale-110 active:scale-95 \
+                                     transition-transform duration-200"
+                                )
+                                on:click=move |_| {
+                                    set_active_view.set(target);
+                                    open.set(false);
+                                }
+                                title=label
+                            >
+                                <span class=format!("material-symbols-outlined text-[24px] {fg}")>{icon}</span>
+                                // Tooltip label (appears on hover to the left of bubble)
+                                <span class="absolute right-full mr-3 px-3 py-1.5 bg-slate-900 text-white \
+                                             text-[11px] font-bold uppercase tracking-wider rounded-md whitespace-nowrap \
+                                             opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none shadow-lg">
+                                    {label}
+                                </span>
+                            </button>
+                        </div>
+                    }
+                }).collect_view()}
+
+                // Main FAB (+ / ×)
+                <button
+                    class=move || format!(
+                        "absolute top-0 left-0 w-14 h-14 rounded-full flex items-center justify-center \
+                         shadow-2xl transition-all duration-300 \
+                         {}",
+                        if open.get() {
+                            "bg-red-500 text-white rotate-[135deg] scale-105"
+                        } else {
+                            "bg-primary text-white rotate-0 hover:scale-110 active:scale-95"
+                        }
+                    )
+                    on:click=move |_| open.update(|v| *v = !*v)
+                    aria-label="Quick actions"
+                >
+                    <span class="material-symbols-outlined text-[28px] transition-transform duration-300">
+                        "add"
+                    </span>
+                </button>
+            </div>
         </div>
     }
 }
@@ -2338,6 +2532,7 @@ fn RowBtn(icon: &'static str) -> impl IntoView {
 #[component]
 fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
     let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
 
     // ── Parámetros del panel de control ──────────────────────────────────────
     // Pre-select action if the Dashboard navigated here with a pending_action.
@@ -2362,7 +2557,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
     let save_toast: RwSignal<Option<String>> = RwSignal::new(None);
 
     view! {
-        <div class="h-full flex overflow-hidden">
+        <div class="h-full flex flex-col xl:flex-row overflow-auto xl:overflow-hidden">
 
             // ── Column 1: Source Document ──────────────────────────────────────
             // The left panel displays the loaded source document.
@@ -2377,7 +2572,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
             // should offer: "Simplify", "Reformulate", "Detect ambiguity" for the
             // selected sentence/paragraph.
             // ── Columna 1: Documento Fuente ───────────────────────────────────
-            <section class="w-[45%] flex flex-col border-l-[4px] border-[#2E75B6] bg-white">
+            <section class="w-full xl:w-[45%] flex flex-col border-l-[4px] border-[#2E75B6] bg-white min-h-[400px] xl:min-h-0">
                 // Cabecera del panel fuente
                 <div class="h-12 border-b border-slate-100 flex items-center justify-between px-6 bg-surf-low/30">
                     <div class="flex items-center gap-4">
@@ -2458,7 +2653,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
             //   Admin           → Module 4 (ADM-001..ADM-009)
             //   Analysis        → Modules 7,8,9,10
             //   Verifiability   → Modules 13,14
-            <section class="w-[240px] bg-surf-low flex flex-col border-x border-slate-200/50">
+            <section class="w-full xl:w-[240px] bg-surf-low flex flex-col border-y xl:border-y-0 xl:border-x border-slate-200/50">
                 <div class="p-6 space-y-8 flex-1 overflow-y-auto">
 
                     // Action selector — custom dropdown with all SRS modules grouped
@@ -2525,6 +2720,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                                 tone.get_untracked(),
                                 audience.get_untracked(),
                                 "es".to_string(),
+                                prefs.language.get(),
                             );
                         }
                     >
@@ -2546,7 +2742,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
             // ── Column 3: Result Area ──────────────────────────────────────────
             // Muestra el output del LLM token a token (SSE streaming).
             // Borde naranja 4px = "output procesado / refinado".
-            <section class="flex-1 flex flex-col border-l-[4px] border-[#C45911] bg-surface">
+            <section class="flex-1 flex flex-col border-l-0 border-t-[4px] xl:border-t-0 xl:border-l-[4px] border-[#C45911] bg-surface min-h-[400px] xl:min-h-0">
                 // Cabecera del resultado
                 <div class="h-12 border-b border-slate-100 flex items-center justify-between px-6 bg-surf-highest/30">
                     <div class="flex items-center gap-4">
@@ -2639,6 +2835,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                                         tone.get_untracked(),
                                         audience.get_untracked(),
                                         "es".to_string(),
+                                        prefs.language.get(),
                                     );
                                 }
                             >
@@ -3198,6 +3395,7 @@ async fn do_analysis(
 #[component]
 fn AnalysisView() -> impl IntoView {
     let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
 
     // Estado reactivo del informe de análisis
     let result:       RwSignal<Option<AnalysisResult>> = RwSignal::new(None);
@@ -3257,7 +3455,7 @@ fn AnalysisView() -> impl IntoView {
     let has_result = move || result.get().is_some();
 
     view! {
-        <div class="p-10 max-w-7xl mx-auto">
+        <div class="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
 
             // ── Toast de exportación ───────────────────────────────────────────
             {move || toast.get().map(|msg| view! {
@@ -3272,7 +3470,7 @@ fn AnalysisView() -> impl IntoView {
                 <div class="flex justify-between items-end flex-wrap gap-4">
                     <div>
                         <h2 class="text-4xl font-sans font-black tracking-tighter text-primary uppercase">
-                            "Document Analysis"
+                            {move || t(&prefs.language.get(), "analysis.document_analysis")}
                         </h2>
                         <p class="font-serif italic text-xl text-outline mt-1">
                             {move || {
@@ -3321,7 +3519,7 @@ fn AnalysisView() -> impl IntoView {
                                 on:click=export_report
                                 class="px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-primary border border-primary rounded-sm hover:bg-primary hover:text-white transition-all"
                             >
-                                "Exportar Informe"
+                                {move || t(&prefs.language.get(), "common.export")}
                             </button>
                         })}
                         // Botón principal
@@ -3340,7 +3538,7 @@ fn AnalysisView() -> impl IntoView {
                                         }
                                     )
                                 >
-                                    {move || if analyzing.get() { "Analizando..." } else { "Ejecutar Análisis" }}
+                                    {move || if analyzing.get() { t(&prefs.language.get(), "analysis.analyzing") } else { t(&prefs.language.get(), "editor.execute") }}
                                 </button>
                             }
                         }}
@@ -3586,6 +3784,7 @@ fn AnalysisModuleBadge(icon: &'static str, label: &'static str, desc: &'static s
 #[component]
 fn ChatView() -> impl IntoView {
     let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
 
     // Estado reactivo de la conversación (CHA-004)
     // Cada tupla: ("user" | "assistant", texto)
@@ -3774,7 +3973,7 @@ fn ChatView() -> impl IntoView {
                     <div class="relative flex items-end gap-3 bg-surf-low rounded-xl p-3 border border-slate-200 focus-within:border-primary transition-all">
                         <textarea
                             class="flex-1 bg-transparent border-none focus:ring-0 text-sm text-on-surf placeholder:text-slate-400 resize-none max-h-32"
-                            placeholder="Pregunta al motor soberano sobre este documento..."
+                            placeholder=move || t(&prefs.language.get(), "chat.placeholder")
                             rows="2"
                             prop:value={move || input_text.get()}
                             on:input=move |ev| set_input_text.set(event_target_value(&ev))
@@ -3956,24 +4155,27 @@ fn ChatAnswerPoint(n: &'static str, title: &'static str, text: &'static str) -> 
 // folder hierarchy: /expedition-{id}/source.docx, /summary.pdf, /press-release.docx, etc.
 
 #[component]
-fn PipelineView() -> impl IntoView {
-    let show_note = RwSignal::new(true);
+fn PipelineView(set_active_view: WriteSignal<View>) -> impl IntoView {
     let regenerating = RwSignal::new(false);
+    let current_step = RwSignal::new(0usize);
     let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
-
     let modal = use_context::<ModalState>().expect("ModalState");
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
+
+    let has_document = move || !ctx.text.get().is_empty();
 
     let regenerate_pipeline = move |_| {
-        if ctx.doc_hash.get().is_empty() {
+        if !has_document() {
             modal.alert("No Document", "Load a document first to regenerate the pipeline.");
             return;
         }
         regenerating.set(true);
+        current_step.set(0);
         let modal_clone = modal.clone();
         spawn_local(async move {
-            // Regenerar todas las transformaciones del pipeline
             let actions = vec!["executive_summary", "press_release", "linkedin_post", "twitter_thread"];
-            for action in actions {
+            for (i, action) in actions.iter().enumerate() {
+                current_step.set(i + 1);
                 let body = serde_json::json!({
                     "text": ctx.text.get_untracked(),
                     "action": action,
@@ -3996,324 +4198,288 @@ fn PipelineView() -> impl IntoView {
                 }
             }
             regenerating.set(false);
-            modal_clone.success("Pipeline Regenerated", "All transformations have been regenerated successfully.");
+            current_step.set(0);
+            modal_clone.success("Pipeline Complete", "All 4 transformations generated successfully.");
         });
     };
 
     view! {
-        <section class="p-12 flex flex-col min-h-full">
+        <section class="p-8 lg:p-12 flex flex-col min-h-full bg-gradient-to-br from-slate-50 to-white">
 
             // ── Header ─────────────────────────────────────────────────────────
-            <div class="flex justify-between items-end mb-16">
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 mb-12">
                 <div>
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                            <span class="material-symbols-outlined text-white">"account_tree"</span>
+                        </div>
+                        <span class="text-[10px] font-black uppercase tracking-widest text-primary/60">
+                            {move || t(&prefs.language.get(), "pipeline.title")}
+                        </span>
+                    </div>
                     <h2 class="font-sans text-4xl font-black text-primary tracking-tight mb-2">
-                        "Production Pipeline"
+                        {move || t(&prefs.language.get(), "nav.pipeline")}
                     </h2>
-                    <p class="font-serif text-slate-500 text-xl max-w-2xl">
-                        "Visualizing the propagation of institutional intelligence from source to distribution nodes."
+                    <p class="font-serif text-slate-500 text-lg max-w-2xl italic">
+                        {move || t(&prefs.language.get(), "pipeline.subtitle")}
                     </p>
                 </div>
-                <button
-                    class="group flex items-center gap-3 bg-[#401700] text-white px-8 py-4 rounded-lg font-sans font-bold text-sm tracking-widest uppercase hover:bg-[#622700] transition-all shadow-xl disabled:opacity-50"
-                    on:click=regenerate_pipeline
-                    disabled=move || regenerating.get()
-                >
-                    <span class=move || format!(
-                        "material-symbols-outlined transition-transform duration-500 {}",
-                        if regenerating.get() { "animate-spin" } else { "group-hover:rotate-180" }
-                    )>
-                        "cached"
-                    </span>
-                    {move || if regenerating.get() { "Regenerando..." } else { "Regenerate Full Pipeline" }}
-                </button>
-            </div>
-
-            // ── Horizontal Pipeline Visualizer ─────────────────────────────────
-            // Nodes are connected by horizontal lines (CSS ::after pseudo-element).
-            // Each node represents either the root document or a derived output.
-            // TODO: make this list dynamic — fetch nodes from GET /api/pipeline/{project_id}
-            // which returns the derivation DAG from SQLite (TRA-002).
-            // TODO (CAD-005): add a temporal sequencing view that shows:
-            //   convocatoria → recordatorio → nota del día → resumen posterior
-            // with scheduled send dates attached to each node.
-            <div class="flex-1 flex items-center overflow-x-auto pb-12">
-                <div class="flex gap-12 items-stretch">
-
-                    // Node: Root Source Document
-                    // The "ROOT AUTHORITY" — all derived documents trace back here.
-                    // The "SOURCE UPDATED" badge appears when the source has been modified
-                    // after derived documents were generated (CAD-003 propagation pending).
-                    <PipelineSourceNode/>
-
-                    // Node: Executive Summary (Derived Layer 01)
-                    // Status: Edited — human has modified the AI output.
-                    // TODO: "Edited" badge appears when the output has been manually changed
-                    // after generation. Store a dirty flag in SQLite alongside the output.
-                    <PipelineDerivedNode
-                        layer="Derived Layer 01"
-                        icon="summarize"
-                        icon_color="text-blue-500"
-                        accent_color="bg-blue-500"
-                        title="Executive Summary"
-                        desc="Synthesized high-level overview for leadership alignment."
-                        status="Edited"
-                        status_class="bg-blue-50 text-blue-600"
-                        locked=false
-                        waiting_for=""
-                    />
-
-                    // Node: Press Release (Derived Layer 02)
-                    // Status: Generated — AI output not yet reviewed by human.
-                    // TODO: "Review Now" CTA should navigate to EditorView with this
-                    // specific derived document loaded in the result panel for editing.
-                    <PipelineDerivedNode
-                        layer="Derived Layer 02"
-                        icon="news"
-                        icon_color="text-emerald-500"
-                        accent_color="bg-emerald-500"
-                        title="Press Release"
-                        desc="External-facing communiqué for global media distribution."
-                        status="Generated"
-                        status_class="bg-emerald-50 text-emerald-600"
-                        locked=false
-                        waiting_for=""
-                    />
-
-                    // Node: LinkedIn Post (Social Amplification)
-                    // Status: Pending — waiting for Press Release (Layer 02) to be approved.
-                    // TODO (CAD-002): enforce dependency order — don't generate social posts
-                    // until the upstream press release has been reviewed (status = "Approved").
-                    // This prevents propagating errors from the press release into social copy.
-                    <PipelineDerivedNode
-                        layer="Social Amplification"
-                        icon="share"
-                        icon_color="text-slate-400"
-                        accent_color="bg-slate-300"
-                        title="LinkedIn Post"
-                        desc="Narrative-driven professional update for corporate ecosystem."
-                        status="Pending"
-                        status_class="bg-slate-200 text-slate-500"
-                        locked=true
-                        waiting_for="Awaiting Layer 02..."
-                    />
-
-                    // Node: Twitter/X Thread (Viral Extraction)
-                    // Status: Pending — also waiting for Press Release approval.
-                    // TODO (GEN-004): Twitter thread generation respects the 280-char limit
-                    // per tweet. The LLM prompt includes: "Split this into N tweets,
-                    // each ≤280 chars, numbered 1/N...N/N".
-                    <PipelineDerivedNode
-                        layer="Viral Extraction"
-                        icon="rebase_edit"
-                        icon_color="text-slate-400"
-                        accent_color="bg-slate-300"
-                        title="Twitter / X Thread"
-                        desc="Concise, high-impact data points for rapid discourse."
-                        status="Pending"
-                        status_class="bg-slate-200 text-slate-500"
-                        locked=true
-                        waiting_for="Awaiting Layer 02..."
-                    />
-
-                    // TODO (GEN-007 + GEN-009): add more nodes as needed:
-                    //   - Email Newsletter (GEN-007)
-                    //   - FAQ Document (GEN-009)
-                    //   - Blog Article (GEN-005)
-                    // Nodes beyond the viewport scroll horizontally.
-                </div>
-            </div>
-
-            // ── Footer Metadata ────────────────────────────────────────────────
-            // Pipeline health and synchronization status.
-            // TODO: drive "Last Synced" from the project's last-modified timestamp.
-            // "Pipeline Health" should count active/failed/pending jobs.
-            // "AI Confidence" is the average VER-004 confidence score across all generated nodes.
-            <div class="grid grid-cols-4 gap-8 pt-8 border-t border-slate-200">
-                <div class="flex flex-col gap-1">
-                    <span class="font-sans text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        "Last Synced"
-                    </span>
-                    <span class="font-serif italic text-primary">"12 Oct 2026, 14:32:01 GMT"</span>
-                </div>
-                <div class="flex flex-col gap-1">
-                    <span class="font-sans text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        "Pipeline Health"
-                    </span>
-                    <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
-                        <span class="font-serif italic text-primary">"Stable — 2 active workers"</span>
-                    </div>
-                </div>
-                <div class="flex flex-col gap-1">
-                    <span class="font-sans text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        "AI Confidence"
-                    </span>
-                    <div class="w-full bg-slate-200 h-1 mt-2">
-                        <div class="bg-primary h-1 w-[94%]"></div>
-                    </div>
-                </div>
-                <div class="flex flex-col gap-1 text-right">
-                    <span class="font-sans text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        "System State"
-                    </span>
-                    <span class="font-sans font-bold text-emerald-600 uppercase text-[10px]">
-                        "Ready for Propagation"
-                    </span>
-                </div>
-            </div>
-
-            // ── Floating Architect's Note (Glassmorphism panel) ────────────────
-            // Architect's Note — dismissable con señal reactiva
-            {move || show_note.get().then(|| view! {
-                <div class="fixed bottom-12 right-12 w-80 bg-white/70 backdrop-blur-2xl p-6 shadow-2xl border border-white/40 rounded-lg z-50">
-                    <div class="flex items-start gap-4">
-                        <div class="p-2 bg-[#C45911]/10 text-[#C45911] rounded">
-                            <span class="material-symbols-outlined text-lg">"insights"</span>
+                <div class="flex items-center gap-4">
+                    <Show when=move || regenerating.get()>
+                        <div class="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg">
+                            <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                            <span class="text-xs font-bold text-blue-600">
+                                {move || format!("Step {}/4", current_step.get())}
+                            </span>
                         </div>
-                        <div class="flex-1">
-                            <h5 class="font-sans font-bold text-xs uppercase tracking-tight text-primary mb-2">
-                                "Architect's Note"
-                            </h5>
-                            <p class="text-sm font-serif text-slate-600 leading-relaxed">
-                                "Source document changes detected in "
-                                <span class="font-bold text-primary">"Section 4.2"</span>
-                                ". Recommended regeneration of the "
-                                <span class="italic">"Press Release"</span>
-                                " node to maintain integrity."
-                            </p>
-                            <div class="mt-4 flex gap-3">
-                                <button class="text-[10px] font-sans font-black uppercase tracking-wider text-primary border-b border-primary pb-0.5">
-                                    "Accept"
-                                </button>
-                                <button
-                                    class="text-[10px] font-sans font-black uppercase tracking-wider text-slate-400 hover:text-red-500 transition-colors"
-                                    on:click=move |_| show_note.set(false)
-                                >
-                                    "Dismiss"
-                                </button>
+                    </Show>
+                    <button
+                        class="group flex items-center gap-3 bg-primary text-white px-6 py-3 rounded-xl font-sans font-bold text-sm tracking-wide hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        on:click=regenerate_pipeline
+                        disabled=move || regenerating.get() || !has_document()
+                    >
+                        <span class=move || format!(
+                            "material-symbols-outlined text-[20px] transition-transform duration-500 {}",
+                            if regenerating.get() { "animate-spin" } else { "group-hover:rotate-180" }
+                        )>
+                            "sync"
+                        </span>
+                        {move || if regenerating.get() { "Generating..." } else { "Generate All" }}
+                    </button>
+                </div>
+            </div>
+
+            // ── No Document State ──────────────────────────────────────────────
+            <Show when=move || !has_document()>
+                <div class="flex-1 flex items-center justify-center">
+                    <div class="text-center max-w-md">
+                        <div class="w-24 h-24 mx-auto mb-6 bg-slate-100 rounded-full flex items-center justify-center">
+                            <span class="material-symbols-outlined text-[48px] text-slate-300">"upload_file"</span>
+                        </div>
+                        <h3 class="font-sans font-black text-xl text-primary mb-2">"No Document Loaded"</h3>
+                        <p class="font-serif italic text-slate-500 mb-6">
+                            "Load a source document from the Dashboard or Editor to start the production pipeline."
+                        </p>
+                        <div class="flex justify-center gap-3">
+                            <div class="px-3 py-1.5 bg-slate-100 rounded text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                "PDF"
+                            </div>
+                            <div class="px-3 py-1.5 bg-slate-100 rounded text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                "DOCX"
+                            </div>
+                            <div class="px-3 py-1.5 bg-slate-100 rounded text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                "TXT"
                             </div>
                         </div>
                     </div>
                 </div>
-            })}
+            </Show>
+
+            // ── Pipeline Flow (when document loaded) ───────────────────────────
+            <Show when=has_document>
+                <div class="flex-1 flex flex-col gap-8">
+                    // Source Document Card
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                        <div class="flex items-start gap-6">
+                            <div class="w-16 h-16 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+                                <span class="material-symbols-outlined text-[32px] text-primary">"description"</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-primary/60">
+                                        "Source Document"
+                                    </span>
+                                    <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded">
+                                        "LOADED"
+                                    </span>
+                                </div>
+                                <h3 class="font-sans font-black text-xl text-primary truncate">
+                                    {move || ctx.filename.get()}
+                                </h3>
+                                <p class="text-sm text-slate-500 mt-1">
+                                    {move || format!("{} words", ctx.word_count.get())}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    // Arrow Down
+                    <div class="flex justify-center">
+                        <div class="flex flex-col items-center gap-1 text-slate-300">
+                            <div class="w-0.5 h-6 bg-slate-200"></div>
+                            <span class="material-symbols-outlined">"keyboard_arrow_down"</span>
+                        </div>
+                    </div>
+
+                    // Output Cards Grid
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                        <PipelineOutputCard
+                            icon="summarize"
+                            icon_bg="bg-blue-500"
+                            title="Executive Summary"
+                            desc="High-level overview for leadership"
+                            action="executive_summary"
+                            step=1
+                            current_step=current_step
+                            regenerating=regenerating
+                            set_active_view=set_active_view
+                        />
+                        <PipelineOutputCard
+                            icon="newspaper"
+                            icon_bg="bg-emerald-500"
+                            title="Press Release"
+                            desc="Media-ready announcement"
+                            action="press_release"
+                            step=2
+                            current_step=current_step
+                            regenerating=regenerating
+                            set_active_view=set_active_view
+                        />
+                        <PipelineOutputCard
+                            icon="work"
+                            icon_bg="bg-blue-600"
+                            title="LinkedIn Post"
+                            desc="Professional network update"
+                            action="linkedin_post"
+                            step=3
+                            current_step=current_step
+                            regenerating=regenerating
+                            set_active_view=set_active_view
+                        />
+                        <PipelineOutputCard
+                            icon="tag"
+                            icon_bg="bg-slate-800"
+                            title="Twitter Thread"
+                            desc="Viral micro-content"
+                            action="twitter_thread"
+                            step=4
+                            current_step=current_step
+                            regenerating=regenerating
+                            set_active_view=set_active_view
+                        />
+                    </div>
+
+                    // Additional Actions
+                    <div class="mt-auto pt-8 border-t border-slate-200">
+                        <div class="flex flex-wrap gap-3">
+                            <button
+                                class="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-bold text-slate-600 transition-colors"
+                                on:click=move |_| set_active_view.set(View::Archive)
+                            >
+                                <span class="material-symbols-outlined text-[18px]">"inventory_2"</span>
+                                "View All Outputs"
+                            </button>
+                            <button
+                                class="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-bold text-slate-600 transition-colors"
+                                on:click=move |_| set_active_view.set(View::Audit)
+                            >
+                                <span class="material-symbols-outlined text-[18px]">"receipt_long"</span>
+                                "View Audit Log"
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Show>
         </section>
     }
 }
 
-// Pipeline sub-components
-
 #[component]
-fn PipelineSourceNode() -> impl IntoView {
-    view! {
-        <div class="flex flex-col gap-4">
-            <span class="font-sans text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                "Root Authority"
-            </span>
-            <div class="w-72 bg-white p-1 shadow-lg border border-slate-200">
-                <div class="bg-surf-cont p-6 border-b border-slate-100 flex flex-col gap-4">
-                    <div class="flex justify-between items-start">
-                        <div class="bg-primary text-white p-2">
-                            <span class="material-symbols-outlined text-lg">"description"</span>
-                        </div>
-                        // This badge indicates the source has been modified after derivations
-                        // TODO (CAD-003): show/hide based on dirty flag from backend
-                        <span class="px-2 py-0.5 bg-orange-100 text-[#fa813a] text-[10px] font-bold flex items-center gap-1 border border-[#fa813a]/20">
-                            <span class="material-symbols-outlined text-[10px]">"error"</span>
-                            "SOURCE UPDATED"
-                        </span>
-                    </div>
-                    <div>
-                        <h3 class="font-serif font-bold text-lg text-primary leading-tight">
-                            "Institutional Report: Q3 Sovereignty Flux"
-                        </h3>
-                        <p class="text-[11px] text-slate-400 uppercase mt-1 tracking-wider">
-                            "DOC_ID: OLIV-8820-X"
-                        </p>
-                    </div>
-                </div>
-                // Document preview (text skeleton + page count)
-                <div class="relative h-48 bg-white p-4 overflow-hidden">
-                    <div class="space-y-2 opacity-40">
-                        <div class="h-2 w-full bg-slate-200"></div>
-                        <div class="h-2 w-4/5 bg-slate-200"></div>
-                        <div class="h-2 w-full bg-slate-200"></div>
-                        <div class="h-2 w-2/3 bg-slate-200"></div>
-                        <div class="mt-4 h-20 w-full bg-slate-100"></div>
-                    </div>
-                    <div class="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent"></div>
-                    <div class="absolute bottom-4 left-4 right-4 flex justify-between items-center">
-                        <span class="text-[10px] font-bold text-slate-400">"142 PAGES"</span>
-                        <span class="material-symbols-outlined text-primary text-sm">"open_in_new"</span>
-                    </div>
-                </div>
-            </div>
-            <div class="flex items-center gap-2 text-[#C45911] px-1">
-                <span class="material-symbols-outlined text-sm">"warning"</span>
-                <span class="text-[11px] font-sans font-bold uppercase tracking-tighter">
-                    "Propagation Pending"
-                </span>
-            </div>
-        </div>
-    }
-}
-
-#[component]
-fn PipelineDerivedNode(
-    layer:        &'static str,
-    icon:         &'static str,
-    icon_color:   &'static str,
-    accent_color: &'static str,
-    title:        &'static str,
-    desc:         &'static str,
-    status:       &'static str,
-    status_class: &'static str,
-    locked:       bool,
-    waiting_for:  &'static str,
+fn PipelineOutputCard(
+    icon: &'static str,
+    icon_bg: &'static str,
+    title: &'static str,
+    desc: &'static str,
+    action: &'static str,
+    step: usize,
+    current_step: RwSignal<usize>,
+    regenerating: RwSignal<bool>,
+    set_active_view: WriteSignal<View>,
 ) -> impl IntoView {
-    let card_class = if locked {
-        "w-64 bg-slate-50 border border-slate-200 p-6 flex flex-col gap-4 relative overflow-hidden opacity-80"
-    } else {
-        "w-64 bg-white border border-slate-200 p-6 shadow-md flex flex-col gap-4 relative overflow-hidden"
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let is_processing = move || regenerating.get() && current_step.get() == step;
+    let is_done = move || regenerating.get() && current_step.get() > step;
+    let is_waiting = move || regenerating.get() && current_step.get() < step;
+
+    let open_in_editor = move |_| {
+        ctx.pending_action.set(Some(action.to_string()));
+        set_active_view.set(View::Editor);
     };
+
     view! {
-        <div class="flex flex-col gap-4">
-            <span class="font-sans text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                {layer}
-            </span>
-            <div class=card_class>
-                // Colored accent strip on right edge — indicates derivation layer
-                <div class=format!("absolute top-0 right-0 w-1 h-full {}", accent_color)></div>
-                <div class="flex justify-between items-center">
-                    <span class=format!("material-symbols-outlined {}", icon_color)>{icon}</span>
-                    <span class=format!("px-2 py-0.5 {} text-[10px] font-bold uppercase tracking-wider", status_class)>
-                        {status}
+        <div class=move || format!(
+            "bg-white rounded-xl border p-5 transition-all duration-300 {}",
+            if is_processing() {
+                "border-blue-300 shadow-lg shadow-blue-100 scale-[1.02]"
+            } else if is_done() {
+                "border-emerald-200 bg-emerald-50/30"
+            } else {
+                "border-slate-200 hover:border-slate-300 hover:shadow-sm"
+            }
+        )>
+            <div class="flex items-start gap-4">
+                <div class=move || format!(
+                    "w-12 h-12 rounded-lg flex items-center justify-center shrink-0 transition-all {}",
+                    if is_processing() { format!("{} animate-pulse", icon_bg) }
+                    else if is_done() { "bg-emerald-500".to_string() }
+                    else { icon_bg.to_string() }
+                )>
+                    <span class="material-symbols-outlined text-white text-[24px]">
+                        {move || if is_done() { "check" } else { icon }}
                     </span>
                 </div>
-                <h4 class="font-serif font-bold text-base text-primary">{title}</h4>
-                <p class="text-sm font-serif text-slate-500 leading-relaxed italic">{desc}</p>
-                <div class="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center">
-                    {if locked {
-                        view! {
-                            <span class="text-[10px] text-slate-400 italic">{waiting_for}</span>
-                            <span class="material-symbols-outlined text-slate-300">"lock"</span>
-                        }.into_any()
-                    } else {
-                        view! {
-                            // TODO: "Review Now" → navigate to EditorView with this derived
-                            // document pre-loaded in the result panel for human editing/approval
-                            <button class="text-[10px] font-bold text-blue-600 hover:underline">
-                                "Review Now"
-                            </button>
-                            <span class="material-symbols-outlined text-slate-300 hover:text-primary cursor-pointer">
-                                "more_horiz"
-                            </span>
-                        }.into_any()
-                    }}
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <h4 class="font-sans font-bold text-sm text-primary truncate">{title}</h4>
+                        {move || {
+                            if is_processing() {
+                                view! {
+                                    <span class="px-2 py-0.5 bg-blue-100 text-blue-600 text-[10px] font-bold rounded animate-pulse">
+                                        "GENERATING"
+                                    </span>
+                                }.into_any()
+                            } else if is_done() {
+                                view! {
+                                    <span class="px-2 py-0.5 bg-emerald-100 text-emerald-600 text-[10px] font-bold rounded">
+                                        "DONE"
+                                    </span>
+                                }.into_any()
+                            } else if is_waiting() {
+                                view! {
+                                    <span class="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded">
+                                        "WAITING"
+                                    </span>
+                                }.into_any()
+                            } else {
+                                view! {
+                                    <span class="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded">
+                                        "READY"
+                                    </span>
+                                }.into_any()
+                            }
+                        }}
+                    </div>
+                    <p class="text-xs text-slate-500 italic">{desc}</p>
                 </div>
             </div>
+            <Show when=move || !regenerating.get()>
+                <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
+                    <button
+                        class="text-[10px] font-bold text-primary hover:underline flex items-center gap-1"
+                        on:click=open_in_editor
+                    >
+                        <span class="material-symbols-outlined text-[12px]">"edit"</span>
+                        "Open in Editor"
+                    </button>
+                    <span class="text-[10px] text-slate-400 uppercase tracking-wider">
+                        {format!("Step {}", step)}
+                    </span>
+                </div>
+            </Show>
         </div>
     }
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // VIEW: AUDIT (Audit Log)
@@ -4439,10 +4605,10 @@ fn ProjectsView(set_active_view: WriteSignal<View>) -> impl IntoView {
     };
 
     view! {
-        <div class="p-10 max-w-7xl mx-auto">
-            <header class="mb-10 flex justify-between items-end">
+        <div class="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
+            <header class="mb-8 lg:mb-10 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
-                    <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
+                    <h2 class="text-2xl sm:text-3xl lg:text-4xl font-sans font-black tracking-tighter text-primary">
                         "Projects"
                     </h2>
                     <p class="font-serif italic text-xl text-outline mt-1">
@@ -4685,7 +4851,7 @@ fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
     };
 
     view! {
-        <div class="p-10 max-w-7xl mx-auto">
+        <div class="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
 
             // ── Header ────────────────────────────────────────────────────────
             <header class="mb-8">
@@ -4872,7 +5038,8 @@ fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
 
 #[component]
 fn AuditView() -> impl IntoView {
-    // ── T10: Fetch audit log from /api/audit ──────────────────────────────────
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
+    // ── T10: Fetch audit log from /api/audit ────────────────────────
     let audit_entries: RwSignal<Option<Vec<AuditEntry>>> = RwSignal::new(None);
     spawn_local(async move {
         let data = fetch_json::<ApiResponse<AuditEntry>>("/api/audit")
@@ -4883,13 +5050,13 @@ fn AuditView() -> impl IntoView {
     });
 
     view! {
-        <div class="p-10 max-w-7xl mx-auto space-y-8">
+        <div class="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto space-y-8">
             <header>
                 <h2 class="text-4xl font-sans font-black tracking-tighter text-primary uppercase">
-                    "Audit Log"
+                    {move || t(&prefs.language.get(), "audit.title")}
                 </h2>
                 <p class="font-serif italic text-xl text-outline mt-1">
-                    "Tamper-evident operation record — ENS Category Alta"
+                    {move || t(&prefs.language.get(), "audit.subtitle")}
                 </p>
             </header>
 
@@ -4898,13 +5065,13 @@ fn AuditView() -> impl IntoView {
                     <thead>
                         <tr class="bg-surf-low border-b border-slate-200">
                             <th class="px-6 py-4 font-sans font-bold text-[10px] uppercase tracking-widest text-slate-500">
-                                "Timestamp"
+                                {move || t(&prefs.language.get(), "audit.timestamp")}
                             </th>
                             <th class="px-6 py-4 font-sans font-bold text-[10px] uppercase tracking-widest text-slate-500">
-                                "Event Type"
+                                {move || t(&prefs.language.get(), "audit.event_type")}
                             </th>
                             <th class="px-6 py-4 font-sans font-bold text-[10px] uppercase tracking-widest text-slate-500">
-                                "Details"
+                                {move || t(&prefs.language.get(), "audit.details")}
                             </th>
                         </tr>
                     </thead>
@@ -4913,14 +5080,14 @@ fn AuditView() -> impl IntoView {
                             None => view! {
                                 <tr>
                                     <td colspan="3" class="px-6 py-8 text-center text-xs text-slate-400 italic">
-                                        "Loading audit log..."
+                                        {move || t(&prefs.language.get(), "audit.loading")}
                                     </td>
                                 </tr>
                             }.into_any(),
                             Some(entries) if entries.is_empty() => view! {
                                 <tr>
                                     <td colspan="3" class="px-6 py-8 text-center text-xs text-slate-400 italic">
-                                        "No audit events yet."
+                                        {move || t(&prefs.language.get(), "audit.no_events")}
                                     </td>
                                 </tr>
                             }.into_any(),
@@ -4971,34 +5138,36 @@ fn AuditView() -> impl IntoView {
 #[component]
 fn TemplatesView(set_active_view: WriteSignal<View>) -> impl IntoView {
     let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
+    let lang = prefs.language.get();
     
     let templates = vec![
-        ("press_release", "Press Release", "Official media communication", "campaign"),
-        ("executive_summary", "Executive Summary", "Leadership synthesis", "summarize"),
-        ("internal_memo", "Internal Memo", "Formal internal communication", "mail"),
-        ("meeting_minutes", "Meeting Minutes", "Record of agreements and attendees", "groups"),
-        ("boe_resolution", "Official Resolution", "Government bulletin format", "gavel"),
-        ("institutional_note", "Institutional Note", "Public agency communication", "account_balance"),
-        ("briefing_note", "Briefing Note", "Executive summary for spokesperson", "record_voice_over"),
-        ("faq_document", "FAQ Document", "Structured frequently asked questions", "help"),
+        ("press_release", t(&lang, "actions.press_release"), t(&lang, "templates.draft_public"), "campaign"),
+        ("executive_summary", t(&lang, "actions.executive_summary"), t(&lang, "templates.leadership_synthesis"), "summarize"),
+        ("internal_memo", t(&lang, "actions.internal_memo"), t(&lang, "templates.formal_internal"), "mail"),
+        ("meeting_minutes", t(&lang, "actions.meeting_minutes"), t(&lang, "templates.high_level"), "groups"),
+        ("boe_resolution", t(&lang, "actions.administrative_resolution"), t(&lang, "templates.government_bulletin"), "gavel"),
+        ("institutional_note", t(&lang, "templates.institutional_note"), t(&lang, "templates.draft_public"), "account_balance"),
+        ("briefing_note", t(&lang, "templates.briefing_note"), t(&lang, "crisis.executive_summary_spokesperson"), "record_voice_over"),
+        ("faq_document", t(&lang, "templates.faq_document"), t(&lang, "actions.faqs"), "help"),
     ];
 
     let new_template = move |_| {
         ctx.text.set(String::new());
-        ctx.filename.set("Custom Template".to_string());
+        ctx.filename.set(t(&prefs.language.get(), "templates.custom"));
         ctx.word_count.set(0);
         ctx.pending_action.set(None);
         set_active_view.set(View::GuidedForm);
     };
 
     view! {
-        <div class="p-10 max-w-7xl mx-auto">
+        <div class="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
             <header class="mb-10">
-                <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
-                    "Templates"
+                <h2 class="text-2xl sm:text-3xl lg:text-4xl font-sans font-black tracking-tighter text-primary">
+                    {move || t(&prefs.language.get(), "templates.title")}
                 </h2>
                 <p class="font-serif italic text-xl text-outline mt-1">
-                    "Select a document type to generate structured content"
+                    {move || t(&prefs.language.get(), "templates.subtitle")}
                 </p>
             </header>
 
@@ -5024,15 +5193,15 @@ fn TemplatesView(set_active_view: WriteSignal<View>) -> impl IntoView {
             </div>
 
             <section class="mt-16">
-                <h3 class="font-sans font-black text-xl text-primary mb-6">"Custom Templates"</h3>
+                <h3 class="font-sans font-black text-xl text-primary mb-6">{move || t(&prefs.language.get(), "templates.custom_templates")}</h3>
                 <div class="bg-white rounded-xl p-12 text-center border border-dashed border-outline-variant">
                     <span class="material-symbols-outlined text-[48px] text-outline/30 mb-4 block">"add_circle"</span>
-                    <p class="font-serif italic text-outline">"Create custom templates with your organizational style"</p>
+                    <p class="font-serif italic text-outline">{move || t(&prefs.language.get(), "templates.subtitle")}</p>
                     <button
                         class="mt-4 px-6 py-2 bg-primary text-white rounded-lg font-bold text-sm"
                         on:click=new_template
                     >
-                        "New Template"
+                        {move || t(&prefs.language.get(), "templates.custom")}
                     </button>
                 </div>
             </section>
@@ -5074,9 +5243,9 @@ fn GuidedFormView(set_active_view: WriteSignal<View>) -> impl IntoView {
     };
 
     view! {
-        <div class="p-10 max-w-4xl mx-auto">
+        <div class="p-4 sm:p-6 lg:p-10 max-w-4xl mx-auto">
             <header class="mb-10">
-                <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
+                <h2 class="text-2xl sm:text-3xl lg:text-4xl font-sans font-black tracking-tighter text-primary">
                     "Guided Builder"
                 </h2>
                 <p class="font-serif italic text-xl text-outline mt-1">
@@ -5087,7 +5256,7 @@ fn GuidedFormView(set_active_view: WriteSignal<View>) -> impl IntoView {
             <div class="bg-white rounded-xl p-8 shadow-sm border border-slate-200/50 space-y-6">
                 <CustomSelect value=doc_type options=DOC_TYPE_OPTIONS label="Document Type"/>
 
-                <div class="grid grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"Title / Subject"</label>
                         <input
@@ -5173,25 +5342,112 @@ fn GuidedFormView(set_active_view: WriteSignal<View>) -> impl IntoView {
 //
 // SRS: VER-001..VER-005
 
+#[derive(Clone, Deserialize)]
+struct VerifyClaim {
+    text:     String,
+    category: String,
+    note:     String,
+}
+
+#[derive(Deserialize)]
+struct VerifyApiResponse {
+    ok:              bool,
+    #[serde(default)]
+    claims:          Vec<VerifyClaim>,
+    #[serde(default)]
+    verified_count:  usize,
+    #[serde(default)]
+    inferred_count:  usize,
+    #[serde(default)]
+    no_source_count: usize,
+    #[serde(default)]
+    error:           Option<String>,
+}
+
 #[component]
 fn VerifiabilityView() -> impl IntoView {
     let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
-    
+    let modal = use_context::<ModalState>().expect("ModalState");
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
+
+    let claims: RwSignal<Option<Vec<VerifyClaim>>> = RwSignal::new(None);
+    let counts: RwSignal<(usize, usize, usize)>   = RwSignal::new((0, 0, 0));
+    let (analysing, set_analysing) = signal(false);
+    let (error_msg, set_error_msg) = signal(String::new());
+
+    let run_verify = move |_| {
+        let source = ctx.text.get_untracked();
+        let output = ctx.output.get_untracked();
+        if source.trim().is_empty() {
+            modal.alert("No Source Document", "Load a source document first.");
+            return;
+        }
+        if output.trim().is_empty() {
+            modal.alert("No Generated Content", "Generate content from the Editor before running verifiability analysis.");
+            return;
+        }
+        set_analysing.set(true);
+        set_error_msg.set(String::new());
+        claims.set(None);
+
+        spawn_local(async move {
+            let body = serde_json::json!({ "source": source, "output": output }).to_string();
+            let headers = web_sys::Headers::new().unwrap();
+            headers.set("Content-Type", "application/json").unwrap();
+            let opts = web_sys::RequestInit::new();
+            opts.set_method("POST");
+            opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+            opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+
+            if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/verify", &opts) {
+                if let Some(w) = web_sys::window() {
+                    if let Ok(rv) = JsFuture::from(w.fetch_with_request(&req)).await {
+                        let resp: web_sys::Response = rv.unchecked_into();
+                        if let Ok(text_js) = JsFuture::from(resp.text().unwrap()).await {
+                            if let Some(raw) = text_js.as_string() {
+                                match serde_json::from_str::<VerifyApiResponse>(&raw) {
+                                    Ok(api) if api.ok => {
+                                        counts.set((api.verified_count, api.inferred_count, api.no_source_count));
+                                        claims.set(Some(api.claims));
+                                    }
+                                    Ok(api) => {
+                                        set_error_msg.set(api.error.unwrap_or_else(|| "Analysis failed".into()));
+                                    }
+                                    Err(e) => set_error_msg.set(format!("Parse error: {}", e)),
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            set_analysing.set(false);
+        });
+    };
+
     view! {
-        <div class="p-10 max-w-7xl mx-auto">
-            <header class="mb-10 flex justify-between items-end">
+        <div class="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
+            <header class="mb-8 lg:mb-10 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
-                    <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
-                        "Verifiability"
+                    <h2 class="text-2xl sm:text-3xl lg:text-4xl font-sans font-black tracking-tighter text-primary">
+                        {move || t(&prefs.language.get(), "verifiability.title")}
                     </h2>
                     <p class="font-serif italic text-xl text-outline mt-1">
-                        "Traceability of each claim to the source document"
+                        {move || t(&prefs.language.get(), "verifiability.subtitle")}
                     </p>
                 </div>
-                <div class="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
-                    <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                    <span class="text-[10px] font-black uppercase tracking-widest text-green-700">"100% Traceable"</span>
-                </div>
+                <button
+                    class="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg font-bold text-sm shadow-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    on:click=run_verify
+                    disabled=move || analysing.get()
+                >
+                    <span class=move || format!(
+                        "material-symbols-outlined text-[18px] {}",
+                        if analysing.get() { "animate-spin" } else { "" }
+                    )>
+                        {move || if analysing.get() { "progress_activity" } else { "fact_check" }}
+                    </span>
+                    {move || if analysing.get() { t(&prefs.language.get(), "verifiability.analyzing_claims") } else { t(&prefs.language.get(), "actions.verifiability_check") }}
+                </button>
             </header>
 
             {move || if ctx.output.get().is_empty() {
@@ -5205,39 +5461,101 @@ fn VerifiabilityView() -> impl IntoView {
                     </div>
                 }.into_any()
             } else {
+                let claims_sig = claims;
+                let counts_sig = counts;
                 view! {
-                    <div class="grid grid-cols-2 gap-8">
+                    // Error banner
+                    {move || (!error_msg.get().is_empty()).then(|| view! {
+                        <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                            <span class="material-symbols-outlined text-red-600">"error"</span>
+                            <div>
+                                <p class="font-bold text-sm text-red-700">"Analysis error"</p>
+                                <p class="text-sm text-red-600">{error_msg.get()}</p>
+                            </div>
+                        </div>
+                    })}
+
+                    // Counts summary
+                    {move || claims_sig.get().is_some().then(|| {
+                        let (v, i, n) = counts_sig.get();
+                        let total = v + i + n;
+                        let trust = if total > 0 { (v * 100) / total } else { 0 };
+                        view! {
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                                <div class="bg-white rounded-xl p-5 border border-slate-200/50 shadow-sm">
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">"Trust Score"</span>
+                                    <p class="text-3xl font-black text-primary mt-1">{format!("{}%", trust)}</p>
+                                </div>
+                                <div class="bg-green-50 rounded-xl p-5 border border-green-200">
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-green-700">"Verified"</span>
+                                    <p class="text-3xl font-black text-green-700 mt-1">{v}</p>
+                                </div>
+                                <div class="bg-amber-50 rounded-xl p-5 border border-amber-200">
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-amber-700">"Inferred"</span>
+                                    <p class="text-3xl font-black text-amber-700 mt-1">{i}</p>
+                                </div>
+                                <div class="bg-red-50 rounded-xl p-5 border border-red-200">
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-red-700">"No Source"</span>
+                                    <p class="text-3xl font-black text-red-700 mt-1">{n}</p>
+                                </div>
+                            </div>
+                        }
+                    })}
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                         <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50">
                             <h3 class="font-sans font-black text-sm uppercase tracking-widest text-primary mb-4">"Generated Content"</h3>
-                            <div class="prose prose-sm max-w-none font-serif">
+                            <div class="prose prose-sm max-w-none font-serif whitespace-pre-wrap">
                                 {ctx.output.get()}
                             </div>
                         </div>
                         <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50">
                             <h3 class="font-sans font-black text-sm uppercase tracking-widest text-primary mb-4">"Claims Classification"</h3>
-                            <div class="space-y-4">
-                                <div class="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                                    <span class="material-symbols-outlined text-green-600">"check_circle"</span>
-                                    <div>
-                                        <span class="text-xs font-bold text-green-700">"VERIFIED"</span>
-                                        <p class="text-sm text-green-800">"Claim directly extracted from source document"</p>
+                            {move || match claims_sig.get() {
+                                None if analysing.get() => view! {
+                                    <div class="text-center py-8">
+                                        <span class="material-symbols-outlined text-[32px] text-primary animate-spin">"progress_activity"</span>
+                                        <p class="text-sm text-outline mt-2 italic">"Analysing claims against source..."</p>
                                     </div>
-                                </div>
-                                <div class="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                                    <span class="material-symbols-outlined text-amber-600">"help"</span>
-                                    <div>
-                                        <span class="text-xs font-bold text-amber-700">"INFERRED"</span>
-                                        <p class="text-sm text-amber-800">"Logical conclusion derived from content"</p>
+                                }.into_any(),
+                                None => view! {
+                                    <div class="text-sm text-outline italic py-8 text-center">
+                                        "Click "
+                                        <span class="font-bold text-primary">"Run Verifiability Analysis"</span>
+                                        " to classify each claim."
                                     </div>
-                                </div>
-                                <div class="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
-                                    <span class="material-symbols-outlined text-red-600">"warning"</span>
-                                    <div>
-                                        <span class="text-xs font-bold text-red-700">"NO SOURCE"</span>
-                                        <p class="text-sm text-red-800">"Content added by the model without documentary basis"</p>
+                                }.into_any(),
+                                Some(list) if list.is_empty() => view! {
+                                    <div class="text-sm text-outline italic py-8 text-center">
+                                        "No claims detected in the generated content."
                                     </div>
-                                </div>
-                            </div>
+                                }.into_any(),
+                                Some(list) => view! {
+                                    <div class="space-y-3 max-h-[600px] overflow-y-auto">
+                                        {list.into_iter().map(|c| {
+                                            let (bg, border, text_color, icon, label) = match c.category.as_str() {
+                                                "VERIFIED"  => ("bg-green-50", "border-green-200", "text-green-700", "check_circle", "VERIFIED"),
+                                                "INFERRED"  => ("bg-amber-50", "border-amber-200", "text-amber-700", "help",         "INFERRED"),
+                                                _           => ("bg-red-50",   "border-red-200",   "text-red-700",   "warning",      "NO SOURCE"),
+                                            };
+                                            view! {
+                                                <div class=format!("p-3 rounded-lg border {} {}", bg, border)>
+                                                    <div class="flex items-start gap-3">
+                                                        <span class=format!("material-symbols-outlined text-[20px] {}", text_color)>{icon}</span>
+                                                        <div class="flex-1 min-w-0">
+                                                            <span class=format!("text-[10px] font-black {}", text_color)>{label}</span>
+                                                            <p class="text-sm text-slate-800 mt-1">{c.text}</p>
+                                                            {(!c.note.is_empty()).then(|| view! {
+                                                                <p class="text-xs text-slate-500 italic mt-1">{c.note}</p>
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        }).collect_view()}
+                                    </div>
+                                }.into_any(),
+                            }}
                         </div>
                     </div>
                 }.into_any()
@@ -5254,38 +5572,75 @@ fn VerifiabilityView() -> impl IntoView {
 //
 // SRS: PUB-001..PUB-005
 
+#[derive(Clone, Deserialize)]
+struct PubIssue {
+    kind:     String,
+    severity: String,
+    message:  String,
+    #[serde(default)]
+    snippet:  String,
+}
+
+#[derive(Clone, Deserialize)]
+struct PubPii {
+    kind:       String,
+    #[serde(rename = "matched")]
+    matched:    String,
+    suggestion: String,
+}
+
+#[derive(Deserialize)]
+struct PubApiResponse {
+    ok:        bool,
+    #[serde(default)]
+    score:     u32,
+    #[serde(default)]
+    ready:     bool,
+    #[serde(default)]
+    issues:    Vec<PubIssue>,
+    #[serde(default)]
+    pii_found: Vec<PubPii>,
+    #[serde(default)]
+    error:     Option<String>,
+}
+
 #[component]
 fn PublicationView() -> impl IntoView {
-    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let ctx   = use_context::<DocumentCtx>().expect("DocumentCtx");
     let modal = use_context::<ModalState>().expect("ModalState");
+
+    // Settings: which checks to run
     let (check_spelling, set_check_spelling) = signal(true);
-    let (check_tone, set_check_tone) = signal(true);
-    let (check_anon, set_check_anon) = signal(false);
-    let (check_classified, set_check_classified) = signal(true);
-    let (anonymizing, set_anonymizing) = signal(false);
-    let (approved, set_approved) = signal(false);
+    let (check_tone,     set_check_tone)     = signal(true);
+    let (check_pii,      set_check_pii)      = signal(true);
 
-    let score = move || {
-        let mut s = 0;
-        if check_spelling.get() { s += 25; }
-        if check_tone.get() { s += 25; }
-        if check_anon.get() { s += 25; }
-        if check_classified.get() { s += 25; }
-        s
-    };
+    // Result state
+    let result:  RwSignal<Option<(u32, bool, Vec<PubIssue>, Vec<PubPii>)>> = RwSignal::new(None);
+    let (running,   set_running)   = signal(false);
+    let (error_msg, set_error_msg) = signal(String::new());
+    let (approved,  set_approved)  = signal(false);
 
-    let anonymize_content = move |_| {
-        set_anonymizing.set(true);
-        let text = ctx.output.get();
+    let run_preflight = move |_| {
+        let text = ctx.output.get_untracked();
+        if text.trim().is_empty() {
+            modal.alert("No Content", "Generate content from the Editor before running preflight.");
+            return;
+        }
+        set_running.set(true);
+        set_error_msg.set(String::new());
+        set_approved.set(false);
+        result.set(None);
+
+        let spelling = check_spelling.get_untracked();
+        let tone     = check_tone.get_untracked();
+        let pii      = check_pii.get_untracked();
+
         spawn_local(async move {
             let body = serde_json::json!({
                 "text": text,
-                "action": "anonymize",
-                "doc_name": "anonymized.txt",
-                "length_words": 0,
-                "tone": "4",
-                "audience": "general",
-                "language": "es",
+                "check_spelling": spelling,
+                "check_tone":     tone,
+                "check_pii":      pii,
             }).to_string();
             let headers = web_sys::Headers::new().unwrap();
             headers.set("Content-Type", "application/json").unwrap();
@@ -5293,44 +5648,82 @@ fn PublicationView() -> impl IntoView {
             opts.set_method("POST");
             opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
             opts.set_headers(&wasm_bindgen::JsValue::from(headers));
-            if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/transform", &opts) {
+            if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/publication", &opts) {
                 if let Some(w) = web_sys::window() {
                     if let Ok(rv) = JsFuture::from(w.fetch_with_request(&req)).await {
                         let resp: web_sys::Response = rv.unchecked_into();
-                        if let Ok(jv) = JsFuture::from(resp.json().unwrap()).await {
-                            if let Some(result) = js_sys::Reflect::get(&jv, &wasm_bindgen::JsValue::from_str("result"))
-                                .ok().and_then(|v| v.as_string()) {
-                                ctx.output.set(result);
+                        if let Ok(text_js) = JsFuture::from(resp.text().unwrap()).await {
+                            if let Some(raw) = text_js.as_string() {
+                                match serde_json::from_str::<PubApiResponse>(&raw) {
+                                    Ok(api) if api.ok => {
+                                        result.set(Some((api.score, api.ready, api.issues, api.pii_found)));
+                                    }
+                                    Ok(api) => set_error_msg.set(api.error.unwrap_or_else(|| "Preflight failed".into())),
+                                    Err(e)  => set_error_msg.set(format!("Parse error: {}", e)),
+                                }
                             }
                         }
                     }
                 }
             }
-            set_check_anon.set(true);
-            set_anonymizing.set(false);
+            set_running.set(false);
         });
     };
 
-    let approve_publication = move |_| {
-        if score() < 100 {
-            modal.alert("Incomplete Checklist", "Complete all checks before approving the publication.");
-            return;
+    let apply_anonymization = move |_| {
+        if let Some((_, _, _, pii_list)) = result.get_untracked() {
+            if pii_list.is_empty() {
+                modal.alert("Nothing to anonymize", "No personal data detected in the current content.");
+                return;
+            }
+            let mut current = ctx.output.get_untracked();
+            for pii in &pii_list {
+                current = current.replace(&pii.matched, &pii.suggestion);
+            }
+            let count = pii_list.len();
+            ctx.output.set(current);
+            modal.success("Anonymized", Box::leak(format!("{} occurrence(s) replaced. Re-run preflight to confirm.", count).into_boxed_str()));
         }
-        set_approved.set(true);
-        let content = ctx.output.get();
-        download_text(content, "approved_publication.txt", "text/plain");
-        modal.success("Publication Approved", "The document has been approved and downloaded.");
+    };
+
+    let approve_publication = move |_| {
+        if let Some((_, ready, _, _)) = result.get_untracked() {
+            if !ready {
+                modal.alert("Not Ready", "Resolve high-severity issues before approving publication.");
+                return;
+            }
+            set_approved.set(true);
+            download_text(ctx.output.get_untracked(), "approved_publication.txt", "text/plain");
+            modal.success("Publication Approved", "The document has been approved and downloaded.");
+        } else {
+            modal.alert("Run Preflight First", "You must run the preflight check before approving.");
+        }
     };
 
     view! {
-        <div class="p-10 max-w-5xl mx-auto">
-            <header class="mb-10">
-                <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
-                    "Secure Publication"
-                </h2>
-                <p class="font-serif italic text-xl text-outline mt-1">
-                    "Preflight and anonymization before publishing"
-                </p>
+        <div class="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
+            <header class="mb-8 lg:mb-10 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+                <div>
+                    <h2 class="text-2xl sm:text-3xl lg:text-4xl font-sans font-black tracking-tighter text-primary">
+                        "Secure Publication"
+                    </h2>
+                    <p class="font-serif italic text-xl text-outline mt-1">
+                        "Preflight checks before publishing"
+                    </p>
+                </div>
+                <button
+                    class="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg font-bold text-sm shadow-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    on:click=run_preflight
+                    disabled=move || running.get()
+                >
+                    <span class=move || format!(
+                        "material-symbols-outlined text-[18px] {}",
+                        if running.get() { "animate-spin" } else { "" }
+                    )>
+                        {move || if running.get() { "progress_activity" } else { "rule" }}
+                    </span>
+                    {move || if running.get() { "Running preflight..." } else { "Run Preflight" }}
+                </button>
             </header>
 
             {move || ctx.output.get().is_empty().then(|| view! {
@@ -5338,133 +5731,197 @@ fn PublicationView() -> impl IntoView {
                     <span class="material-symbols-outlined text-[48px] text-primary/20 mb-6 block">"shield"</span>
                     <h3 class="font-sans font-black text-xl text-primary mb-2">"No content to publish"</h3>
                     <p class="font-serif italic text-outline max-w-md mx-auto">
-                        "Generate content from the Editor to verify before publishing."
+                        "Generate content from the Editor first."
                     </p>
                 </div>
             })}
 
             {move || (!ctx.output.get().is_empty()).then(|| view! {
-                <div class="grid grid-cols-3 gap-6 mb-8">
-                    <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 text-center">
-                        <div class=move || format!(
-                            "w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center {}",
-                            if score() >= 75 { "bg-green-100" } else if score() >= 50 { "bg-amber-100" } else { "bg-red-100" }
-                        )>
-                            <span class=move || format!(
-                                "material-symbols-outlined text-[32px] {}",
-                                if score() >= 75 { "text-green-600" } else if score() >= 50 { "text-amber-600" } else { "text-red-600" }
-                            )>"verified"</span>
-                        </div>
-                        <h3 class="font-sans font-black text-2xl text-primary">{move || format!("{}%", score())}</h3>
-                        <p class="text-[10px] font-bold uppercase tracking-widest text-outline">"Publishability Score"</p>
-                    </div>
-                    <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 text-center">
-                        <div class=move || format!(
-                            "w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center {}",
-                            if check_anon.get() { "bg-green-100" } else { "bg-amber-100" }
-                        )>
-                            <span class=move || format!(
-                                "material-symbols-outlined text-[32px] {}",
-                                if check_anon.get() { "text-green-600" } else { "text-amber-600" }
-                            )>"person_off"</span>
-                        </div>
-                        <h3 class="font-sans font-black text-2xl text-primary">
-                            {move || if check_anon.get() { "0" } else { "?" }}
-                        </h3>
-                        <p class="text-[10px] font-bold uppercase tracking-widest text-outline">"Personal Data"</p>
-                    </div>
-                    <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 text-center">
-                        <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
-                            <span class="material-symbols-outlined text-[32px] text-green-600">"shield"</span>
-                        </div>
-                        <h3 class="font-sans font-black text-2xl text-primary">"0"</h3>
-                        <p class="text-[10px] font-bold uppercase tracking-widest text-outline">"Critical Alerts"</p>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 mb-8">
-                    <h3 class="font-sans font-black text-sm uppercase tracking-widest text-primary mb-4">"Publication Checklist"</h3>
-                    <div class="space-y-3">
-                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low cursor-pointer">
-                            <input
-                                type="checkbox"
-                                class="w-5 h-5 accent-primary"
+                // Check options
+                <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50 mb-6">
+                    <h3 class="font-sans font-black text-sm uppercase tracking-widest text-primary mb-4">"Check Configuration"</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer border border-slate-200">
+                            <input type="checkbox" class="w-4 h-4 accent-primary"
                                 prop:checked=move || check_spelling.get()
-                                on:change=move |_| set_check_spelling.update(|v| *v = !*v)
-                            />
-                            <span class="text-sm">"Spelling and grammar verified"</span>
-                            <span class=move || format!(
-                                "ml-auto material-symbols-outlined {}",
-                                if check_spelling.get() { "text-green-500" } else { "text-slate-300" }
-                            )>{move || if check_spelling.get() { "check_circle" } else { "radio_button_unchecked" }}</span>
+                                on:change=move |_| set_check_spelling.update(|v| *v = !*v)/>
+                            <div>
+                                <span class="text-sm font-bold">"Spelling & grammar"</span>
+                                <p class="text-xs text-outline">"LLM-based detection"</p>
+                            </div>
                         </label>
-                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low cursor-pointer">
-                            <input
-                                type="checkbox"
-                                class="w-5 h-5 accent-primary"
+                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer border border-slate-200">
+                            <input type="checkbox" class="w-4 h-4 accent-primary"
                                 prop:checked=move || check_tone.get()
-                                on:change=move |_| set_check_tone.update(|v| *v = !*v)
-                            />
-                            <span class="text-sm">"Appropriate institutional tone"</span>
-                            <span class=move || format!(
-                                "ml-auto material-symbols-outlined {}",
-                                if check_tone.get() { "text-green-500" } else { "text-slate-300" }
-                            )>{move || if check_tone.get() { "check_circle" } else { "radio_button_unchecked" }}</span>
+                                on:change=move |_| set_check_tone.update(|v| *v = !*v)/>
+                            <div>
+                                <span class="text-sm font-bold">"Institutional tone"</span>
+                                <p class="text-xs text-outline">"Register and bias"</p>
+                            </div>
                         </label>
-                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low cursor-pointer">
-                            <input
-                                type="checkbox"
-                                class="w-5 h-5 accent-primary"
-                                prop:checked=move || check_anon.get()
-                                on:change=move |_| set_check_anon.update(|v| *v = !*v)
-                            />
-                            <span class="text-sm">"Personal data anonymized"</span>
-                            <span class=move || format!(
-                                "ml-auto material-symbols-outlined {}",
-                                if check_anon.get() { "text-green-500" } else { "text-amber-500" }
-                            )>{move || if check_anon.get() { "check_circle" } else { "warning" }}</span>
-                        </label>
-                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low cursor-pointer">
-                            <input
-                                type="checkbox"
-                                class="w-5 h-5 accent-primary"
-                                prop:checked=move || check_classified.get()
-                                on:change=move |_| set_check_classified.update(|v| *v = !*v)
-                            />
-                            <span class="text-sm">"No classified information"</span>
-                            <span class=move || format!(
-                                "ml-auto material-symbols-outlined {}",
-                                if check_classified.get() { "text-green-500" } else { "text-slate-300" }
-                            )>{move || if check_classified.get() { "check_circle" } else { "radio_button_unchecked" }}</span>
+                        <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer border border-slate-200">
+                            <input type="checkbox" class="w-4 h-4 accent-primary"
+                                prop:checked=move || check_pii.get()
+                                on:change=move |_| set_check_pii.update(|v| *v = !*v)/>
+                            <div>
+                                <span class="text-sm font-bold">"Personal data (PII)"</span>
+                                <p class="text-xs text-outline">"Emails, phones, IDs"</p>
+                            </div>
                         </label>
                     </div>
                 </div>
 
-                <div class="flex justify-between items-center">
-                    <button
-                        class="px-6 py-3 border border-primary text-primary rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-primary/5 disabled:opacity-50"
-                        on:click=anonymize_content
-                        disabled=move || anonymizing.get() || check_anon.get()
-                    >
-                        <span class=move || if anonymizing.get() { "material-symbols-outlined text-[18px] animate-spin" } else { "material-symbols-outlined text-[18px]" }>
-                            {move || if anonymizing.get() { "sync" } else { "person_off" }}
-                        </span>
-                        {move || if anonymizing.get() { "Anonymizing..." } else if check_anon.get() { "Already anonymized" } else { "Auto Anonymize" }}
-                    </button>
-                    <button
-                        class=move || format!(
-                            "px-8 py-3 rounded-lg font-bold text-sm flex items-center gap-2 {}",
-                            if approved.get() { "bg-green-600 text-white" } else { "bg-primary text-white hover:bg-primary/90" }
-                        )
-                        on:click=approve_publication
-                        disabled=move || approved.get()
-                    >
-                        <span class="material-symbols-outlined text-[18px]">
-                            {move || if approved.get() { "check" } else { "publish" }}
-                        </span>
-                        {move || if approved.get() { "Publication Approved" } else { "Approve Publication" }}
-                    </button>
-                </div>
+                // Error banner
+                {move || (!error_msg.get().is_empty()).then(|| view! {
+                    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                        <span class="material-symbols-outlined text-red-600">"error"</span>
+                        <div>
+                            <p class="font-bold text-sm text-red-700">"Preflight error"</p>
+                            <p class="text-sm text-red-600">{error_msg.get()}</p>
+                        </div>
+                    </div>
+                })}
+
+                // Results
+                {move || result.get().map(|(score, ready, issues, pii_list)| {
+                    let high_count   = issues.iter().filter(|i| i.severity == "high").count();
+                    let medium_count = issues.iter().filter(|i| i.severity == "medium").count();
+                    let low_count    = issues.iter().filter(|i| i.severity == "low").count();
+
+                    let (score_bg, score_fg, score_icon) = if ready {
+                        ("bg-green-100", "text-green-600", "verified")
+                    } else if score >= 60 {
+                        ("bg-amber-100", "text-amber-600", "warning")
+                    } else {
+                        ("bg-red-100", "text-red-600", "dangerous")
+                    };
+
+                    view! {
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                            <div class="bg-white rounded-xl p-5 border border-slate-200/50 shadow-sm text-center">
+                                <div class=format!("w-14 h-14 mx-auto mb-2 rounded-full flex items-center justify-center {}", score_bg)>
+                                    <span class=format!("material-symbols-outlined text-[28px] {}", score_fg)>{score_icon}</span>
+                                </div>
+                                <h3 class="font-black text-2xl text-primary">{format!("{}%", score)}</h3>
+                                <p class="text-[10px] font-bold uppercase tracking-widest text-outline">"Score"</p>
+                            </div>
+                            <div class="bg-red-50 rounded-xl p-5 border border-red-200 text-center">
+                                <h3 class="font-black text-2xl text-red-700">{high_count}</h3>
+                                <p class="text-[10px] font-bold uppercase tracking-widest text-red-700">"High"</p>
+                            </div>
+                            <div class="bg-amber-50 rounded-xl p-5 border border-amber-200 text-center">
+                                <h3 class="font-black text-2xl text-amber-700">{medium_count}</h3>
+                                <p class="text-[10px] font-bold uppercase tracking-widest text-amber-700">"Medium"</p>
+                            </div>
+                            <div class="bg-slate-50 rounded-xl p-5 border border-slate-200 text-center">
+                                <h3 class="font-black text-2xl text-slate-700">{low_count}</h3>
+                                <p class="text-[10px] font-bold uppercase tracking-widest text-slate-600">"Low"</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                            // Issues
+                            <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50">
+                                <h3 class="font-black text-sm uppercase tracking-widest text-primary mb-4">"Issues"</h3>
+                                {if issues.is_empty() {
+                                    view! {
+                                        <div class="text-center py-8">
+                                            <span class="material-symbols-outlined text-[32px] text-green-500">"check_circle"</span>
+                                            <p class="text-sm text-outline italic mt-2">"No issues detected."</p>
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <div class="space-y-2 max-h-[400px] overflow-y-auto">
+                                            {issues.into_iter().map(|iss| {
+                                                let (bg, fg, icon) = match iss.severity.as_str() {
+                                                    "high"   => ("bg-red-50 border-red-200",       "text-red-700",    "error"),
+                                                    "medium" => ("bg-amber-50 border-amber-200",   "text-amber-700",  "warning"),
+                                                    _        => ("bg-slate-50 border-slate-200",   "text-slate-600",  "info"),
+                                                };
+                                                view! {
+                                                    <div class=format!("p-3 rounded-lg border {}", bg)>
+                                                        <div class="flex items-start gap-2">
+                                                            <span class=format!("material-symbols-outlined text-[16px] {}", fg)>{icon}</span>
+                                                            <div class="flex-1 min-w-0">
+                                                                <div class="flex items-center gap-2">
+                                                                    <span class=format!("text-[10px] font-black uppercase {}", fg)>{iss.kind}</span>
+                                                                    <span class=format!("text-[10px] {}", fg)>{iss.severity}</span>
+                                                                </div>
+                                                                <p class="text-sm text-slate-800 mt-1">{iss.message}</p>
+                                                                {(!iss.snippet.is_empty()).then(|| view! {
+                                                                    <p class="text-xs text-slate-500 italic mt-1 truncate">{format!("\u{201c}{}\u{201d}", iss.snippet)}</p>
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }).collect_view()}
+                                        </div>
+                                    }.into_any()
+                                }}
+                            </div>
+
+                            // PII
+                            <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200/50">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="font-black text-sm uppercase tracking-widest text-primary">"Personal Data (PII)"</h3>
+                                    {(!pii_list.is_empty()).then(|| view! {
+                                        <button
+                                            class="px-3 py-1 text-[10px] font-bold bg-primary text-white rounded hover:bg-primary/90"
+                                            on:click=apply_anonymization
+                                        >
+                                            "Anonymize All"
+                                        </button>
+                                    })}
+                                </div>
+                                {if pii_list.is_empty() {
+                                    view! {
+                                        <div class="text-center py-8">
+                                            <span class="material-symbols-outlined text-[32px] text-green-500">"verified_user"</span>
+                                            <p class="text-sm text-outline italic mt-2">"No personal data detected."</p>
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <div class="space-y-2 max-h-[400px] overflow-y-auto">
+                                            {pii_list.into_iter().map(|pii| view! {
+                                                <div class="p-3 rounded-lg border border-red-200 bg-red-50">
+                                                    <div class="flex items-center justify-between gap-2">
+                                                        <span class="text-[10px] font-black uppercase text-red-700">{pii.kind}</span>
+                                                        <span class="text-[10px] text-red-600">{format!("→ {}", pii.suggestion)}</span>
+                                                    </div>
+                                                    <p class="text-sm font-mono text-slate-800 mt-1 truncate">{pii.matched}</p>
+                                                </div>
+                                            }).collect_view()}
+                                        </div>
+                                    }.into_any()
+                                }}
+                            </div>
+                        </div>
+
+                        // Actions
+                        <div class="flex justify-end gap-3">
+                            <button
+                                class=move || format!(
+                                    "px-8 py-3 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors {}",
+                                    if approved.get() { "bg-green-600 text-white" }
+                                    else if ready     { "bg-primary text-white hover:bg-primary/90" }
+                                    else              { "bg-slate-300 text-slate-500 cursor-not-allowed" }
+                                )
+                                on:click=approve_publication
+                                disabled=move || approved.get() || !ready
+                            >
+                                <span class="material-symbols-outlined text-[18px]">
+                                    {if approved.get() { "check" } else { "publish" }}
+                                </span>
+                                {if approved.get() { "Approved — Downloaded" }
+                                 else if ready     { "Approve & Download" }
+                                 else              { "Resolve High-Severity Issues" }}
+                            </button>
+                        </div>
+                    }
+                })}
             })}
         </div>
     }
@@ -5481,6 +5938,7 @@ fn PublicationView() -> impl IntoView {
 #[component]
 fn CrisisView() -> impl IntoView {
     let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
     let scenario = RwSignal::new("data_breach".to_string());
     let (facts, set_facts) = signal(String::new());
     let (position, set_position) = signal(String::new());
@@ -5488,53 +5946,52 @@ fn CrisisView() -> impl IntoView {
     let (active_tool, set_active_tool) = signal("".to_string());
     let (result, set_result) = signal(String::new());
 
+    let modal = use_context::<ModalState>().expect("ModalState");
+
     let generate_crisis_material = move |tool: &str| {
         let tool = tool.to_string();
+        if facts.get_untracked().trim().is_empty() {
+            modal.alert("Missing Facts", "Please describe the confirmed facts before generating crisis material.");
+            return;
+        }
         set_active_tool.set(tool.clone());
         set_generating.set(true);
         set_result.set(String::new());
-        
-        let scenario_val = scenario.get();
-        let facts_val = facts.get();
-        let position_val = position.get();
-        
+
+        let scenario_val = scenario.get_untracked();
+        let facts_val    = facts.get_untracked();
+        let position_val = position.get_untracked();
+
         spawn_local(async move {
-            let prompt = format!(
-                "ESCENARIO DE CRISIS: {}\n\nHECHOS CONFIRMADOS:\n{}\n\nPOSICIÓN OFICIAL:\n{}\n\nGENERAR: {}",
-                scenario_val, facts_val, position_val, tool
-            );
-            
-            let action = match tool.as_str() {
-                "comparecencia" => "crisis_speech",
-                "qa" => "inverse_questions",
-                "cronologia" => "timeline_extraction",
-                _ => "crisis_speech",
-            };
-            
             let body = serde_json::json!({
-                "text": prompt,
-                "action": action,
-                "doc_name": format!("crisis_{}.txt", tool),
-                "length_words": 500,
-                "tone": "4",
-                "audience": "media",
-                "language": "es",
+                "scenario": scenario_val,
+                "facts":    facts_val,
+                "position": position_val,
+                "tool":     tool,
             }).to_string();
-            
+
             let headers = web_sys::Headers::new().unwrap();
             headers.set("Content-Type", "application/json").unwrap();
             let opts = web_sys::RequestInit::new();
             opts.set_method("POST");
             opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
             opts.set_headers(&wasm_bindgen::JsValue::from(headers));
-            
-            if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/transform", &opts) {
+
+            if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/crisis", &opts) {
                 if let Some(w) = web_sys::window() {
                     if let Ok(rv) = JsFuture::from(w.fetch_with_request(&req)).await {
                         let resp: web_sys::Response = rv.unchecked_into();
-                        if let Ok(text) = JsFuture::from(resp.text().unwrap()).await {
-                            if let Some(s) = text.as_string() {
-                                set_result.set(s);
+                        if let Ok(text_js) = JsFuture::from(resp.text().unwrap()).await {
+                            if let Some(raw) = text_js.as_string() {
+                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw) {
+                                    if json["ok"].as_bool().unwrap_or(false) {
+                                        let output = json["output"].as_str().unwrap_or("").to_string();
+                                        set_result.set(output);
+                                    } else {
+                                        let err = json["error"].as_str().unwrap_or("Unknown error").to_string();
+                                        set_result.set(format!("⚠ Error: {}", err));
+                                    }
+                                }
                             }
                         }
                     }
@@ -5553,17 +6010,17 @@ fn CrisisView() -> impl IntoView {
     };
 
     view! {
-        <div class="p-10 max-w-6xl mx-auto">
-            <header class="mb-10 flex justify-between items-end">
+        <div class="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
+            <header class="mb-8 lg:mb-10 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
                     <div class="flex items-center gap-3 mb-2">
                         <span class="material-symbols-outlined text-[32px] text-red-500">"crisis_alert"</span>
-                        <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
-                            "Crisis Mode"
+                        <h2 class="text-2xl sm:text-3xl lg:text-4xl font-sans font-black tracking-tighter text-primary">
+                            {move || t(&prefs.language.get(), "crisis.title")}
                         </h2>
                     </div>
                     <p class="font-serif italic text-xl text-outline">
-                        "Crisis communication and press conference tools"
+                        {move || t(&prefs.language.get(), "crisis.subtitle")}
                     </p>
                 </div>
                 <div class="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
@@ -5572,18 +6029,18 @@ fn CrisisView() -> impl IntoView {
                 </div>
             </header>
 
-            <div class="grid grid-cols-3 gap-6 mb-8">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
                 <button
                     class=move || format!(
                         "bg-white rounded-xl p-6 text-left border shadow-sm hover:shadow-lg transition-all group {}",
-                        if active_tool.get() == "comparecencia" { "border-red-500 ring-2 ring-red-200" } else { "border-slate-200/50 hover:border-red-300" }
+                        if active_tool.get() == "speech" { "border-red-500 ring-2 ring-red-200" } else { "border-slate-200/50 hover:border-red-300" }
                     )
-                    on:click=move |_| generate_crisis_material("comparecencia")
+                    on:click=move |_| generate_crisis_material("speech")
                     disabled=move || generating.get()
                 >
                     <span class="material-symbols-outlined text-[32px] text-red-500 mb-4 block">"record_voice_over"</span>
-                    <h3 class="font-sans font-black text-lg text-primary mb-1">"Press Conference"</h3>
-                    <p class="font-serif italic text-sm text-outline">"Generate script and key points for press briefing"</p>
+                    <h3 class="font-sans font-black text-lg text-primary mb-1">{move || t(&prefs.language.get(), "actions.crisis_press_questions")}</h3>
+                    <p class="font-serif italic text-sm text-outline">{move || t(&prefs.language.get(), "crisis.press_briefing")}</p>
                 </button>
                 <button
                     class=move || format!(
@@ -5594,20 +6051,20 @@ fn CrisisView() -> impl IntoView {
                     disabled=move || generating.get()
                 >
                     <span class="material-symbols-outlined text-[32px] text-amber-500 mb-4 block">"quiz"</span>
-                    <h3 class="font-sans font-black text-lg text-primary mb-1">"Defensive Q&A"</h3>
-                    <p class="font-serif italic text-sm text-outline">"Anticipate tough questions and prepare answers"</p>
+                    <h3 class="font-sans font-black text-lg text-primary mb-1">{move || t(&prefs.language.get(), "crisis.defensive_qa")}</h3>
+                    <p class="font-serif italic text-sm text-outline">{move || t(&prefs.language.get(), "crisis.anticipate_questions")}</p>
                 </button>
                 <button
                     class=move || format!(
                         "bg-white rounded-xl p-6 text-left border shadow-sm hover:shadow-lg transition-all group {}",
-                        if active_tool.get() == "cronologia" { "border-blue-500 ring-2 ring-blue-200" } else { "border-slate-200/50 hover:border-red-300" }
+                        if active_tool.get() == "timeline" { "border-blue-500 ring-2 ring-blue-200" } else { "border-slate-200/50 hover:border-red-300" }
                     )
-                    on:click=move |_| generate_crisis_material("cronologia")
+                    on:click=move |_| generate_crisis_material("timeline")
                     disabled=move || generating.get()
                 >
                     <span class="material-symbols-outlined text-[32px] text-blue-500 mb-4 block">"timeline"</span>
-                    <h3 class="font-sans font-black text-lg text-primary mb-1">"Timeline"</h3>
-                    <p class="font-serif italic text-sm text-outline">"Facts timeline for coherent communication"</p>
+                    <h3 class="font-sans font-black text-lg text-primary mb-1">{move || t(&prefs.language.get(), "actions.event_timeline")}</h3>
+                    <p class="font-serif italic text-sm text-outline">{move || t(&prefs.language.get(), "crisis.facts_timeline")}</p>
                 </button>
             </div>
 
@@ -5616,12 +6073,12 @@ fn CrisisView() -> impl IntoView {
                     <CustomSelect value=scenario options=CRISIS_SCENARIO_OPTIONS label="Crisis Scenario"/>
                 </div>
 
-                <div class="grid grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"Confirmed Facts"</label>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">{move || t(&prefs.language.get(), "crisis.facts")}</label>
                         <textarea
                             class="w-full p-3 rounded-lg border border-outline-variant text-sm h-32 resize-none"
-                            placeholder="Describe the objective and confirmed facts..."
+                            placeholder=move || t(&prefs.language.get(), "crisis.describe_objective")
                             on:input=move |ev| set_facts.set(event_target_value(&ev))
                         ></textarea>
                     </div>
@@ -5690,12 +6147,15 @@ fn CrisisView() -> impl IntoView {
 
 #[component]
 fn SettingsView() -> impl IntoView {
+    let prefs = use_context::<AppPrefs>().expect("AppPrefs");
     let (endpoint, set_endpoint) = signal("http://localhost:11434".to_string());
     let model = RwSignal::new("qwen3:32b".to_string());
     let (temperature, set_temperature) = signal(0.7f32);
     let (saving, set_saving) = signal(false);
     let (saved, set_saved) = signal(false);
     let (connection_status, set_connection_status) = signal("checking".to_string());
+    let (language_loading, set_language_loading) = signal(false);
+    let language_changed = RwSignal::new(false);
 
     // Cargar configuración actual al iniciar
     spawn_local(async move {
@@ -5728,6 +6188,7 @@ fn SettingsView() -> impl IntoView {
     });
 
     let save_settings = move |_| {
+        let current_lang = prefs.language.get_untracked();
         set_saving.set(true);
         set_saved.set(false);
         spawn_local(async move {
@@ -5747,39 +6208,158 @@ fn SettingsView() -> impl IntoView {
                     let _ = JsFuture::from(window.fetch_with_request(&req)).await;
                 }
             }
-            set_saving.set(false);
-            set_saved.set(true);
+            
+            // Check if language changed
+            if current_lang != prefs.language.get_untracked() {
+                set_language_loading.set(true);
+                // Simulate reload delay for smooth transition
+                gloo_timers::future::sleep(std::time::Duration::from_millis(800)).await;
+                if let Some(window) = web_sys::window() {
+                    let _ = window.location().reload();
+                }
+            } else {
+                set_saving.set(false);
+                set_saved.set(true);
+            }
         });
     };
 
     view! {
-        <div class="p-10 max-w-3xl mx-auto">
-            <header class="mb-10">
-                <h2 class="text-4xl font-sans font-black tracking-tighter text-primary">
-                    "AI Engine"
+        <div class="p-4 sm:p-6 lg:p-10 max-w-3xl mx-auto space-y-8">
+            // Language loading overlay
+            {move || language_loading.get().then(|| view! {
+                <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm">
+                    <div class="bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-4">
+                        <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                        <p class="text-sm font-bold text-primary">"Loading language..."</p>
+                    </div>
+                </div>
+            })}
+            
+            <header class="mb-12">
+                <h2 class="font-serif text-4xl font-black text-primary">
+                    {t(&prefs.language.get(), "settings.header")}
                 </h2>
                 <p class="font-serif italic text-xl text-outline mt-1">
-                    "Local language model configuration"
+                    {t(&prefs.language.get(), "settings.subtitle")}
                 </p>
             </header>
 
+            // ── Appearance ──────────────────────────────────────────────────
             <div class="bg-white rounded-xl p-8 shadow-sm border border-slate-200/50 space-y-6">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-primary">"palette"</span>
+                    <h3 class="font-sans font-black text-lg text-primary">{t(&prefs.language.get(), "settings.appearance")}</h3>
+                </div>
+
+                // Theme: Light / Dark
                 <div>
-                    <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">"LLM Endpoint"</label>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">{t(&prefs.language.get(), "settings.theme")}</label>
+                    <div class="grid grid-cols-2 gap-3 max-w-md">
+                        <button
+                            class=move || format!(
+                                "p-4 rounded-xl border-2 transition-all flex items-center gap-3 {}",
+                                if !prefs.dark.get() {
+                                    "border-primary bg-primary/5 ring-2 ring-primary/20"
+                                } else {
+                                    "border-slate-200 hover:border-slate-300 bg-white"
+                                }
+                            )
+                            on:click=move |_| prefs.dark.set(false)
+                        >
+                            <span class="material-symbols-outlined text-amber-500">"light_mode"</span>
+                            <div class="text-left">
+                                <div class="font-bold text-sm text-primary">{t(&prefs.language.get(), "settings.theme.light")}</div>
+                                <div class="text-[10px] text-outline">{t(&prefs.language.get(), "settings.theme.light.desc")}</div>
+                            </div>
+                        </button>
+                        <button
+                            class=move || format!(
+                                "p-4 rounded-xl border-2 transition-all flex items-center gap-3 {}",
+                                if prefs.dark.get() {
+                                    "border-primary bg-primary/5 ring-2 ring-primary/20"
+                                } else {
+                                    "border-slate-200 hover:border-slate-300 bg-white"
+                                }
+                            )
+                            on:click=move |_| prefs.dark.set(true)
+                        >
+                            <span class="material-symbols-outlined text-indigo-400">"dark_mode"</span>
+                            <div class="text-left">
+                                <div class="font-bold text-sm text-primary">{t(&prefs.language.get(), "settings.theme.dark")}</div>
+                                <div class="text-[10px] text-outline">{t(&prefs.language.get(), "settings.theme.dark.desc")}</div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                // Language: ES / EN only, with icons (no emojis)
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">{t(&prefs.language.get(), "settings.language")}</label>
+                    <div class="grid grid-cols-2 gap-3 max-w-md">
+                        <button
+                            class=move || format!(
+                                "p-4 rounded-xl border-2 transition-all flex items-center gap-3 {}",
+                                if prefs.language.get() == "es" {
+                                    "border-primary bg-primary/5 ring-2 ring-primary/20"
+                                } else {
+                                    "border-slate-200 hover:border-slate-300 bg-white"
+                                }
+                            )
+                            on:click=move |_| prefs.language.set("es".to_string())
+                        >
+                            <span class="material-symbols-outlined text-primary">"language"</span>
+                            <div class="text-left">
+                                <div class="font-bold text-sm text-primary">"Español"</div>
+                                <div class="text-[10px] text-outline">"ES"</div>
+                            </div>
+                        </button>
+                        <button
+                            class=move || format!(
+                                "p-4 rounded-xl border-2 transition-all flex items-center gap-3 {}",
+                                if prefs.language.get() == "en" {
+                                    "border-primary bg-primary/5 ring-2 ring-primary/20"
+                                } else {
+                                    "border-slate-200 hover:border-slate-300 bg-white"
+                                }
+                            )
+                            on:click=move |_| prefs.language.set("en".to_string())
+                        >
+                            <span class="material-symbols-outlined text-primary">"language"</span>
+                            <div class="text-left">
+                                <div class="font-bold text-sm text-primary">"English"</div>
+                                <div class="text-[10px] text-outline">"EN"</div>
+                            </div>
+                        </button>
+                    </div>
+                    <p class="text-xs text-outline mt-2">
+                        {t(&prefs.language.get(), "settings.language.desc")}
+                    </p>
+                </div>
+            </div>
+
+            // ── AI Engine ──────────────────────────────────────────────────
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-slate-200/50 space-y-6">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-primary">"memory"</span>
+                    <h3 class="font-sans font-black text-lg text-primary">{t(&prefs.language.get(), "settings.ai_engine")}</h3>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">{t(&prefs.language.get(), "settings.llm_endpoint")}</label>
                     <input
                         type="text"
                         class="w-full p-3 rounded-lg border border-outline-variant text-sm font-mono focus:ring-2 focus:ring-primary"
                         prop:value=move || endpoint.get()
                         on:input=move |ev| set_endpoint.set(event_target_value(&ev))
                     />
-                    <p class="text-xs text-outline mt-1">"Ollama or compatible server URL (vLLM, llama.cpp)"</p>
+                    <p class="text-xs text-outline mt-1">{t(&prefs.language.get(), "settings.llm_endpoint.desc")}</p>
                 </div>
 
-                <CustomSelect value=model options=MODEL_OPTIONS label="Model"/>
+                <CustomSelect value=model options=MODEL_OPTIONS label={t(&prefs.language.get(), "settings.model").leak()}/>
 
                 <div>
                     <label class="block text-[10px] font-black uppercase tracking-widest text-outline mb-2">
-                        "Temperature: " {move || format!("{:.1}", temperature.get())}
+                        {t(&prefs.language.get(), "settings.temperature")} {move || format!("{:.1}", temperature.get())}
                     </label>
                     <input
                         type="range"
@@ -5795,20 +6375,20 @@ fn SettingsView() -> impl IntoView {
                         }
                     />
                     <div class="flex justify-between text-xs text-outline mt-1">
-                        <span>"Precise"</span>
-                        <span>"Creative"</span>
+                        <span>{t(&prefs.language.get(), "settings.temperature.precise")}</span>
+                        <span>{t(&prefs.language.get(), "settings.temperature.creative")}</span>
                     </div>
                 </div>
 
                 <div class="pt-4 border-t border-outline-variant">
-                    <h4 class="text-[10px] font-black uppercase tracking-widest text-outline mb-4">"System Status"</h4>
+                    <h4 class="text-[10px] font-black uppercase tracking-widest text-outline mb-4">{t(&prefs.language.get(), "settings.system_status")}</h4>
                     <div class="grid grid-cols-2 gap-4">
                         {move || {
                             let status = connection_status.get();
                             let (bg, border, dot, text_color, label, desc) = match status.as_str() {
-                                "connected" => ("bg-green-50", "border-green-200", "bg-green-500", "text-green-700", "CONNECTED", format!("Ollama responding at {}", endpoint.get())),
-                                "error" => ("bg-red-50", "border-red-200", "bg-red-500", "text-red-700", "DISCONNECTED", "Cannot connect to Ollama".to_string()),
-                                _ => ("bg-amber-50", "border-amber-200", "bg-amber-500", "text-amber-700", "CHECKING", "Checking connection...".to_string()),
+                                "connected" => ("bg-green-50", "border-green-200", "bg-green-500", "text-green-700", t(&prefs.language.get(), "settings.connected"), format!("Ollama responding at {}", endpoint.get())),
+                                "error" => ("bg-red-50", "border-red-200", "bg-red-500", "text-red-700", t(&prefs.language.get(), "settings.disconnected"), "Cannot connect to Ollama".to_string()),
+                                _ => ("bg-amber-50", "border-amber-200", "bg-amber-500", "text-amber-700", t(&prefs.language.get(), "settings.checking"), t(&prefs.language.get(), "settings.checking.desc")),
                             };
                             view! {
                                 <div class=format!("p-4 rounded-lg border {} {}", bg, border)>
@@ -5834,7 +6414,7 @@ fn SettingsView() -> impl IntoView {
                     {move || saved.get().then(|| view! {
                         <span class="flex items-center gap-2 text-green-600 text-sm font-bold">
                             <span class="material-symbols-outlined text-[18px]">"check_circle"</span>
-                            "Guardado"
+                            {t(&prefs.language.get(), "settings.saved")}
                         </span>
                     })}
                     <button
@@ -5845,7 +6425,7 @@ fn SettingsView() -> impl IntoView {
                         <span class=move || if saving.get() { "material-symbols-outlined text-[18px] animate-spin" } else { "material-symbols-outlined text-[18px]" }>
                             {move || if saving.get() { "sync" } else { "save" }}
                         </span>
-                        {move || if saving.get() { "Saving..." } else { "Save Configuration" }}
+                        {move || if saving.get() { t(&prefs.language.get(), "settings.saving") } else { t(&prefs.language.get(), "settings.save") }}
                     </button>
                 </div>
             </div>

@@ -5,6 +5,10 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>OLIV4600 — Sovereign Intelligence</title>
 
+    <!-- Favicon: futurist minimal typewriter -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg"/>
+    <link rel="apple-touch-icon" href="/icon.svg"/>
+
     <link href="https://fonts.googleapis.com" rel="preconnect"/>
     <link crossorigin href="https://fonts.gstatic.com" rel="preconnect"/>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap"
@@ -42,13 +46,17 @@
                 },
             },
         };
+        // Pre-apply dark class ASAP to avoid FOUC
+        try {
+            if (localStorage.getItem("oliv:dark") === "1") {
+                document.documentElement.classList.add("dark");
+            }
+        } catch (e) {}
         window.parent.postMessage({type: "localai:sidebar_color", color: "#002542"}, "*")
     </script>
 
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         html, body {
             margin: 0;
@@ -62,10 +70,117 @@
             vertical-align: middle;
             line-height: 1;
         }
+
+        /* ────────────────────────────────────────────────────────────────── */
+        /* DARK MODE — global overrides of common Tailwind classes           */
+        /* Applied automatically when <html class="dark"> is set.            */
+        /* ────────────────────────────────────────────────────────────────── */
+        html.dark { color-scheme: dark; }
+        html.dark, html.dark body { background: #0b1220 !important; color: #e2e8f0; }
+
+        /* --- Surfaces / backgrounds --- */
+        html.dark .bg-white          { background-color: #111a2e !important; }
+        html.dark .bg-white\/85      { background-color: rgba(17, 26, 46, 0.85) !important; }
+        html.dark .bg-white\/90      { background-color: rgba(17, 26, 46, 0.90) !important; }
+        html.dark .bg-surface        { background-color: #0b1220 !important; }
+        html.dark .bg-surf-low       { background-color: #101a2e !important; }
+        html.dark .bg-surf-cont      { background-color: #18223a !important; }
+        html.dark .bg-surf-high      { background-color: #1f2a44 !important; }
+        html.dark .bg-surf-highest   { background-color: #273350 !important; }
+        html.dark .bg-slate-50       { background-color: #18223a !important; }
+        html.dark .bg-slate-100      { background-color: #1f2a44 !important; }
+        html.dark .bg-slate-900\/5   { background-color: rgba(255,255,255,0.04) !important; }
+
+        /* Soft tinted cards keep identity but darker */
+        html.dark .bg-green-50       { background-color: rgba(16, 185, 129, 0.08) !important; }
+        html.dark .bg-amber-50       { background-color: rgba(245, 158, 11, 0.08) !important; }
+        html.dark .bg-red-50         { background-color: rgba(239, 68,  68,  0.10) !important; }
+        html.dark .bg-blue-50        { background-color: rgba(59, 130, 246, 0.10) !important; }
+        html.dark .bg-purple-50      { background-color: rgba(139, 92, 246, 0.10) !important; }
+
+        html.dark .bg-primary        { background-color: #1e3a5f !important; }
+        html.dark .bg-primary\/5     { background-color: rgba(102, 166, 234, 0.10) !important; }
+
+        /* --- Text colors --- */
+        html.dark .text-primary      { color: #b8d4f8 !important; }
+        html.dark .text-on-surf      { color: #e2e8f0 !important; }
+        html.dark .text-on-surf-var,
+        html.dark .text-outline      { color: #cbd5e1 !important; }
+        html.dark .text-slate-900,
+        html.dark .text-slate-800,
+        html.dark .text-slate-700    { color: #e2e8f0 !important; }
+        html.dark .text-slate-600    { color: #cbd5e1 !important; }
+        html.dark .text-slate-500    { color: #94a3b8 !important; }
+        html.dark .text-slate-400,
+        html.dark .text-slate-300    { color: #cbd5e1 !important; }
+
+        /* Accent color tints get brighter for contrast */
+        html.dark .text-green-700    { color: #6ee7b7 !important; }
+        html.dark .text-green-800    { color: #86efac !important; }
+        html.dark .text-amber-700,
+        html.dark .text-amber-800    { color: #fcd34d !important; }
+        html.dark .text-red-700,
+        html.dark .text-red-800      { color: #fca5a5 !important; }
+        html.dark .text-blue-700,
+        html.dark .text-blue-800     { color: #93c5fd !important; }
+        html.dark .text-blue-600     { color: #60a5fa !important; }
+        html.dark .text-purple-600   { color: #c084fc !important; }
+        html.dark .text-emerald-600  { color: #5eead4 !important; }
+
+        /* Material Symbols icons in dark mode */
+        html.dark .material-symbols-outlined {
+            color: inherit;
+        }
+        html.dark .text-primary .material-symbols-outlined,
+        html.dark .text-slate-700 .material-symbols-outlined,
+        html.dark .text-slate-600 .material-symbols-outlined {
+            color: currentColor;
+        }
+
+        /* --- Borders --- */
+        html.dark .border-slate-200,
+        html.dark .border-slate-200\/50,
+        html.dark .border-slate-100  { border-color: #1f2a44 !important; }
+        html.dark .border-outline-variant,
+        html.dark .border-outline-var { border-color: #2a3a5a !important; }
+        html.dark .border-green-200  { border-color: rgba(16,185,129,0.3) !important; }
+        html.dark .border-amber-200  { border-color: rgba(245,158,11,0.3) !important; }
+        html.dark .border-red-200    { border-color: rgba(239,68,68,0.3)  !important; }
+        html.dark .border-blue-200   { border-color: rgba(59,130,246,0.3) !important; }
+
+        /* --- Inputs --- */
+        html.dark input[type="text"],
+        html.dark input[type="email"],
+        html.dark input[type="password"],
+        html.dark input[type="number"],
+        html.dark input[type="search"],
+        html.dark textarea,
+        html.dark select {
+            background-color: #0e182c !important;
+            color: #e2e8f0 !important;
+            border-color: #2a3a5a !important;
+        }
+        html.dark input::placeholder,
+        html.dark textarea::placeholder { color: #64748b !important; }
+
+        /* --- Hover overlays --- */
+        html.dark .hover\:bg-slate-50:hover   { background-color: #1b2640 !important; }
+        html.dark .hover\:bg-slate-100:hover  { background-color: #22304c !important; }
+        html.dark .hover\:bg-surf-cont:hover  { background-color: #22304c !important; }
+
+        /* --- Scrollbar (webkit) --- */
+        html.dark ::-webkit-scrollbar { background: #0b1220; }
+        html.dark ::-webkit-scrollbar-thumb { background: #273350; border-radius: 6px; }
+        html.dark ::-webkit-scrollbar-thumb:hover { background: #34436a; }
+
+        /* --- Prose (generated content) --- */
+        html.dark .prose { color: #cbd5e1; }
+        html.dark .prose strong { color: #e2e8f0; }
     </style>
 </head>
 <body>
 <div id="app"></div>
 <link data-trunk data-wasm-opt="z" rel="rust"/>
+<link data-trunk rel="copy-file" href="icon.svg"/>
 </body>
 </html>
