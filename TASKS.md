@@ -113,30 +113,31 @@ Show "No transformations yet" if the list is empty.
 
 ## Priority 3 — Chat Improvements
 
-### T08 — Backend + Frontend: Chat audit logging [ PENDING ]
+### T08 — Backend + Frontend: Chat audit logging [ DONE ]
 
 **Depends on**: T05 DONE
 **What**: In `server/src/routes/chat.rs` (or wherever /v1/chat/stream is),
 after a chat completes, INSERT into `audit_log` table:
-event_type = "chat", payload = JSON with doc_name, user_message snippet (first 100 chars), timestamp.
-No frontend changes needed.
+- event_type = "chat"
+- payload = JSON with doc_name, user_message snippet (100 chars), timestamp
+- No frontend changes required
 **Files**: `server/src/routes/chat.rs`
-**Acceptance**: After a chat, audit_log has a new entry.
-**Note**: —
+**Acceptance**: `cargo build` passes. Chat events logged to audit_log.
+**Note**: Added chat logging after SSE stream completes. Extracts user message snippet (max 100 chars), model name, and message count. Calls db.log_event("chat", payload).
 
 ---
 
 ## Priority 4 — Audit Screen
 
-### T09 — Backend: GET /api/audit endpoint [ PENDING ]
+### T09 — Backend: GET /api/audit endpoint [ DONE ]
 
 **Depends on**: T05 DONE
 **What**: Add GET `/api/audit` that returns last 50 rows from `audit_log` as JSON.
 Also log transform events: update transform.rs to INSERT into audit_log too
-(event_type = "transform").
-**Files**: `server/src/routes/analyse.rs` or new `server/src/routes/audit.rs`
-**Acceptance**: Endpoint returns JSON array.
-**Note**: —
+(event_type = "transform", payload = JSON with doc_name, action, word_count).
+**Files**: `server/src/routes/audit.rs` (new), `server/src/routes/transform.rs`
+**Acceptance**: `cargo build` passes. GET `/api/audit` returns JSON array.
+**Note**: Created audit.rs with GET endpoint returning last 50 rows. Transform.rs already logs events (lines 161-170). Registered in routes/mod.rs and main.rs.
 
 ---
 

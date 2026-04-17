@@ -1,4 +1,5 @@
 pub mod analyse;
+pub mod audit;
 pub mod browse;
 pub mod chat;
 pub mod download;
