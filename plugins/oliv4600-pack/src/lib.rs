@@ -74,6 +74,16 @@ struct ApiDocument {
     last_used:   String,
 }
 
+/// Row returned by GET /api/audit
+#[derive(Clone, Serialize, Deserialize)]
+struct AuditEntry {
+    #[allow(dead_code)]
+    id:          i64,
+    event_type:  String,
+    payload:     String,
+    ts:          String,
+}
+
 /// Wrapper for both API responses: { ok: bool, data: [...] }
 #[derive(Serialize, Deserialize)]
 struct ApiResponse<T> {
@@ -4862,9 +4872,19 @@ fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
 
 #[component]
 fn AuditView() -> impl IntoView {
+    // ── T10: Fetch audit log from /api/audit ──────────────────────────────────
+    let audit_entries: RwSignal<Option<Vec<AuditEntry>>> = RwSignal::new(None);
+    spawn_local(async move {
+        let data = fetch_json::<ApiResponse<AuditEntry>>("/api/audit")
+            .await
+            .map(|r| r.data)
+            .unwrap_or_default();
+        audit_entries.set(Some(data));
+    });
+
     view! {
-        <div class="p-10 max-w-7xl mx-auto">
-            <header class="mb-10">
+        <div class="p-10 max-w-7xl mx-auto space-y-8">
+            <header>
                 <h2 class="text-4xl font-sans font-black tracking-tighter text-primary uppercase">
                     "Audit Log"
                 </h2>
@@ -4873,30 +4893,68 @@ fn AuditView() -> impl IntoView {
                 </p>
             </header>
 
-            // Placeholder — full implementation in Phase 8
-            <div class="bg-white rounded-xl p-16 text-center border border-slate-200/50 shadow-sm">
-                <span class="material-symbols-outlined text-[48px] text-primary/20 mb-6 block">
-                    "history_edu"
-                </span>
-                <h3 class="font-sans font-black text-xl text-primary mb-2">
-                    "Audit Engine — Phase 8"
-                </h3>
-                <p class="font-serif italic text-on-surf-var max-w-md mx-auto">
-                    "The tamper-evident audit log will record every transformation, analysis,
-                    and export operation with SHA-256 hash chaining. Scheduled for Phase 8
-                    (ENS Category Alta compliance)."
-                </p>
-                <div class="mt-8 flex justify-center gap-4">
-                    <div class="px-4 py-2 bg-surf-low rounded-sm text-[10px] font-bold uppercase tracking-widest text-outline">
-                        "TRA-001 ✓ Designed"
-                    </div>
-                    <div class="px-4 py-2 bg-surf-low rounded-sm text-[10px] font-bold uppercase tracking-widest text-outline">
-                        "SEC-005 ✓ Designed"
-                    </div>
-                    <div class="px-4 py-2 bg-surf-low rounded-sm text-[10px] font-bold uppercase tracking-widest text-outline">
-                        "TRA-003 ✓ Designed"
-                    </div>
-                </div>
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200/50">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surf-low border-b border-slate-200">
+                            <th class="px-6 py-4 font-sans font-bold text-[10px] uppercase tracking-widest text-slate-500">
+                                "Timestamp"
+                            </th>
+                            <th class="px-6 py-4 font-sans font-bold text-[10px] uppercase tracking-widest text-slate-500">
+                                "Event Type"
+                            </th>
+                            <th class="px-6 py-4 font-sans font-bold text-[10px] uppercase tracking-widest text-slate-500">
+                                "Details"
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {move || match audit_entries.get() {
+                            None => view! {
+                                <tr>
+                                    <td colspan="3" class="px-6 py-8 text-center text-xs text-slate-400 italic">
+                                        "Loading audit log..."
+                                    </td>
+                                </tr>
+                            }.into_any(),
+                            Some(entries) if entries.is_empty() => view! {
+                                <tr>
+                                    <td colspan="3" class="px-6 py-8 text-center text-xs text-slate-400 italic">
+                                        "No audit events yet."
+                                    </td>
+                                </tr>
+                            }.into_any(),
+                            Some(entries) => entries.into_iter().map(|entry| {
+                                let (badge_class, badge_label) = match entry.event_type.as_str() {
+                                    "transform" => ("bg-blue-100 text-blue-700", "Transform"),
+                                    "chat" => ("bg-purple-100 text-purple-700", "Chat"),
+                                    "analysis" => ("bg-green-100 text-green-700", "Analysis"),
+                                    _ => ("bg-slate-100 text-slate-700", "Other"),
+                                };
+                                let payload_snippet = if entry.payload.len() > 80 {
+                                    format!("{}...", &entry.payload[..80])
+                                } else {
+                                    entry.payload.clone()
+                                };
+                                view! {
+                                    <tr class="hover:bg-slate-50 transition-colors">
+                                        <td class="px-6 py-4 text-sm text-slate-600 font-mono">
+                                            {entry.ts}
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <span class=move || format!("px-3 py-1 rounded-full text-xs font-bold {}", badge_class)>
+                                                {badge_label}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm text-slate-600 max-w-md truncate">
+                                            {payload_snippet}
+                                        </td>
+                                    </tr>
+                                }
+                            }).collect_view().into_any(),
+                        }}
+                    </tbody>
+                </table>
             </div>
         </div>
     }

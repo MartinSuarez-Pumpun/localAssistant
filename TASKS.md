@@ -141,7 +141,7 @@ Also log transform events: update transform.rs to INSERT into audit_log too
 
 ---
 
-### T10 — Frontend: Wire Audit screen to `/api/audit` [ PENDING ]
+### T10 — Frontend: Wire Audit screen to `/api/audit` [ DONE ]
 
 **Depends on**: T09 DONE
 **What**: In `plugins/oliv4600-pack/src/lib.rs`, find the `Audit` view
@@ -149,8 +149,8 @@ Also log transform events: update transform.rs to INSERT into audit_log too
 GET `/api/audit` on mount and shows: timestamp, event_type, payload snippet.
 Style matches the Olivetti design system (font-sans, primary color, no box borders).
 **Files**: `plugins/oliv4600-pack/src/lib.rs`
-**Acceptance**: Audit screen shows real events.
-**Note**: —
+**Acceptance**: Audit screen shows real audit log entries from the database.
+**Note**: Added AuditEntry struct. Updated AuditView to fetch from /api/audit and render table with event badges (transform/chat/analysis). Shows loading state and empty message.
 
 ---
 
