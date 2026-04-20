@@ -1,0 +1,411 @@
+2026-04-20T07:13:44.077454Z  INFO 🚀 Starting trunk 0.21.14
+2026-04-20T07:13:44.267950Z  INFO 📦 starting build
+   Compiling web-sys v0.3.94
+   Compiling reactive_graph v0.1.8
+   Compiling gloo-utils v0.2.0
+   Compiling gloo-net v0.6.0
+   Compiling wasm-streams v0.4.2
+   Compiling server_fn v0.7.8
+   Compiling reactive_stores v0.1.8
+   Compiling tachys v0.1.9
+   Compiling leptos_server v0.7.8
+   Compiling leptos_dom v0.7.8
+   Compiling leptos v0.7.8
+   Compiling oliv4600-pack v1.0.0 (/Users/pumpun12/localAssistant/plugins/oliv4600-pack)
+warning: use of deprecated method `web_sys::BlobPropertyBag::type_`: Use `set_type()` instead.
+   --> src/lib.rs:537:10
+    |
+537 |     opts.type_(mime);
+    |          ^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: unused variable: `handle_file`
+    --> src/lib.rs:1295:5
+     |
+1295 |     handle_file: impl Fn(web_sy...
+     |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_handle_file`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `active_nav`
+    --> src/lib.rs:1546:10
+     |
+1546 |     let (active_nav, set_active...
+     |          ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_active_nav`
+
+warning: unused variable: `set_active_nav`
+    --> src/lib.rs:1546:22
+     |
+1546 | ...nav, set_active_nav) = signa...
+     |         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_set_active_nav`
+
+warning: unused variable: `close_on_select`
+    --> src/lib.rs:1687:9
+     |
+1687 |     let close_on_select = move ...
+     |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_close_on_select`
+
+warning: unused variable: `file_input_ref`
+    --> src/lib.rs:2063:9
+     |
+2063 |     let file_input_ref = NodeRe...
+     |         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_file_input_ref`
+
+warning: unused variable: `language`
+    --> src/lib.rs:2549:10
+     |
+2549 |     let (language,        set_l...
+     |          ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_language`
+
+warning: unused variable: `ctx`
+    --> src/lib.rs:5940:9
+     |
+5940 |     let ctx = use_context::<Doc...
+     |         ^^^ help: if this is intentional, prefix it with an underscore: `_ctx`
+
+warning: unused variable: `language_changed`
+    --> src/lib.rs:6158:9
+     |
+6158 |     let language_changed = RwSi...
+     |         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_language_changed`
+
+warning: struct `ApiDocument` is never constructed
+  --> src/lib.rs:67:8
+   |
+67 | struct ApiDocument {
+   |        ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `upload_and_load` is never used
+   --> src/lib.rs:313:4
+    |
+313 | fn upload_and_load(file: web_sys...
+    |    ^^^^^^^^^^^^^^^
+
+warning: variant `Error` is never constructed
+   --> src/lib.rs:654:5
+    |
+650 | enum ModalType {
+    |      --------- variant in this enum
+...
+654 |     Error,
+    |     ^^^^^
+    |
+    = note: `ModalType` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: method `error` is never used
+   --> src/lib.rs:684:8
+    |
+657 | impl ModalState {
+    | --------------- method in this implementation
+...
+684 |     fn error(&self, title: &str,...
+    |        ^^^^^
+
+warning: constant `TONE_OPTIONS` is never used
+   --> src/lib.rs:951:7
+    |
+951 | const TONE_OPTIONS: &[(&str, &st...
+    |       ^^^^^^^^^^^^
+
+warning: fields `icon`, `label`, `active`, and `set_active` are never read
+    --> src/lib.rs:1841:5
+     |
+1839 | #[component]
+     | ------------ fields in this struct
+1840 | fn NavItem(
+1841 |     icon:       &'static str,
+     |     ^^^^
+1842 |     label:      &'static str,
+     |     ^^^^^
+1843 |     active:     ReadSignal<&'st...
+     |     ^^^^^^
+1844 |     set_active: WriteSignal<&'s...
+     |     ^^^^^^^^^^
+
+warning: field `label` is never read
+    --> src/lib.rs:1865:15
+     |
+1864 | #[component]
+     | ------------ field in this struct
+1865 | fn RecentItem(label: String) ->...
+     |               ^^^^^
+
+warning: field `icon` is never read
+    --> src/lib.rs:2036:12
+     |
+2035 | #[component]
+     | ------------ field in this struct
+2036 | fn IconBtn(icon: &'static str) ...
+     |            ^^^^
+
+warning: field `label` is never read
+    --> src/lib.rs:2993:19
+     |
+2992 | #[component]
+     | ------------ field in this struct
+2993 | fn ControlMenuBtn(label: &'stat...
+     |                   ^^^^^
+
+warning: field `text` is never read
+    --> src/lib.rs:3003:15
+     |
+3002 | #[component]
+     | ------------ field in this struct
+3003 | fn BulletItem(text: &'static st...
+     |               ^^^^
+
+warning: struct `RealAnalysisResult` is never constructed
+    --> src/lib.rs:3073:8
+     |
+3073 | struct RealAnalysisResult {
+     |        ^^^^^^^^^^^^^^^^^^
+
+warning: struct `AnalysisEntity` is never constructed
+    --> src/lib.rs:3084:8
+     |
+3084 | struct AnalysisEntity {
+     |        ^^^^^^^^^^^^^^
+
+warning: function `call_api_analyse` is never used
+    --> src/lib.rs:3092:10
+     |
+3092 | async fn call_api_analyse(text:...
+     |          ^^^^^^^^^^^^^^^^
+
+warning: fields `icon` and `label` are never read
+    --> src/lib.rs:4026:14
+     |
+4025 | #[component]
+     | ------------ fields in this struct
+4026 | fn QuickChip(icon: &'static str, label: &...
+     |              ^^^^                ^^^^^
+
+warning: field `text` is never read
+    --> src/lib.rs:4036:17
+     |
+4035 | #[component]
+     | ------------ field in this struct
+4036 | fn ChatBubbleAi(text: &'static ...
+     |                 ^^^^
+
+warning: fields `text` and `time` are never read
+    --> src/lib.rs:4059:19
+     |
+4058 | #[component]
+     | ------------ fields in this struct
+4059 | fn ChatBubbleUser(text: &'static str, time: &...
+     |                   ^^^^                ^^^^
+
+warning: `oliv4600-pack` (lib) generated 25 warnings (run `cargo fix --lib -p oliv4600-pack` to apply 8 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 32.78s
+2026-04-20T07:14:19.467567Z  INFO applying new distribution
+2026-04-20T07:14:19.485706Z  INFO ✅ success
+2026-04-20T07:14:19.485914Z  INFO 📡 serving static assets at -> /plugins/oliv4600-pack/app/
+2026-04-20T07:14:19.485971Z  INFO 📡 server listening at:
+2026-04-20T07:14:19.485983Z  INFO     🏠 http://127.0.0.1:8080/plugins/oliv4600-pack/app/
+2026-04-20T07:14:19.485987Z  INFO     🏠 http://[::1]:8080/plugins/oliv4600-pack/app/
+2026-04-20T07:14:19.491257Z  INFO     🏠 http://localhost.:8080/plugins/oliv4600-pack/app/
+2026-04-20T07:14:26.190572Z  INFO 📦 starting build
+warning: use of deprecated method `web_sys::BlobPropertyBag::type_`: Use `set_type()` instead.
+   --> src/lib.rs:537:10
+    |
+537 |     opts.type_(mime);
+    |          ^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: unused variable: `handle_file`
+    --> src/lib.rs:1295:5
+     |
+1295 |     handle_file: impl Fn(web_sy...
+     |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_handle_file`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `active_nav`
+    --> src/lib.rs:1546:10
+     |
+1546 |     let (active_nav, set_active...
+     |          ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_active_nav`
+
+warning: unused variable: `set_active_nav`
+    --> src/lib.rs:1546:22
+     |
+1546 | ...nav, set_active_nav) = signa...
+     |         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_set_active_nav`
+
+warning: unused variable: `close_on_select`
+    --> src/lib.rs:1687:9
+     |
+1687 |     let close_on_select = move ...
+     |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_close_on_select`
+
+warning: unused variable: `file_input_ref`
+    --> src/lib.rs:2063:9
+     |
+2063 |     let file_input_ref = NodeRe...
+     |         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_file_input_ref`
+
+warning: unused variable: `language`
+    --> src/lib.rs:2549:10
+     |
+2549 |     let (language,        set_l...
+     |          ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_language`
+
+warning: unused variable: `ctx`
+    --> src/lib.rs:5940:9
+     |
+5940 |     let ctx = use_context::<Doc...
+     |         ^^^ help: if this is intentional, prefix it with an underscore: `_ctx`
+
+warning: unused variable: `language_changed`
+    --> src/lib.rs:6158:9
+     |
+6158 |     let language_changed = RwSi...
+     |         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_language_changed`
+
+warning: struct `ApiDocument` is never constructed
+  --> src/lib.rs:67:8
+   |
+67 | struct ApiDocument {
+   |        ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `upload_and_load` is never used
+   --> src/lib.rs:313:4
+    |
+313 | fn upload_and_load(file: web_sys...
+    |    ^^^^^^^^^^^^^^^
+
+warning: variant `Error` is never constructed
+   --> src/lib.rs:654:5
+    |
+650 | enum ModalType {
+    |      --------- variant in this enum
+...
+654 |     Error,
+    |     ^^^^^
+    |
+    = note: `ModalType` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: method `error` is never used
+   --> src/lib.rs:684:8
+    |
+657 | impl ModalState {
+    | --------------- method in this implementation
+...
+684 |     fn error(&self, title: &str,...
+    |        ^^^^^
+
+warning: constant `TONE_OPTIONS` is never used
+   --> src/lib.rs:951:7
+    |
+951 | const TONE_OPTIONS: &[(&str, &st...
+    |       ^^^^^^^^^^^^
+
+warning: fields `icon`, `label`, `active`, and `set_active` are never read
+    --> src/lib.rs:1841:5
+     |
+1839 | #[component]
+     | ------------ fields in this struct
+1840 | fn NavItem(
+1841 |     icon:       &'static str,
+     |     ^^^^
+1842 |     label:      &'static str,
+     |     ^^^^^
+1843 |     active:     ReadSignal<&'st...
+     |     ^^^^^^
+1844 |     set_active: WriteSignal<&'s...
+     |     ^^^^^^^^^^
+
+warning: field `label` is never read
+    --> src/lib.rs:1865:15
+     |
+1864 | #[component]
+     | ------------ field in this struct
+1865 | fn RecentItem(label: String) ->...
+     |               ^^^^^
+
+warning: field `icon` is never read
+    --> src/lib.rs:2036:12
+     |
+2035 | #[component]
+     | ------------ field in this struct
+2036 | fn IconBtn(icon: &'static str) ...
+     |            ^^^^
+
+warning: field `label` is never read
+    --> src/lib.rs:2993:19
+     |
+2992 | #[component]
+     | ------------ field in this struct
+2993 | fn ControlMenuBtn(label: &'stat...
+     |                   ^^^^^
+
+warning: field `text` is never read
+    --> src/lib.rs:3003:15
+     |
+3002 | #[component]
+     | ------------ field in this struct
+3003 | fn BulletItem(text: &'static st...
+     |               ^^^^
+
+warning: struct `RealAnalysisResult` is never constructed
+    --> src/lib.rs:3073:8
+     |
+3073 | struct RealAnalysisResult {
+     |        ^^^^^^^^^^^^^^^^^^
+
+warning: struct `AnalysisEntity` is never constructed
+    --> src/lib.rs:3084:8
+     |
+3084 | struct AnalysisEntity {
+     |        ^^^^^^^^^^^^^^
+
+warning: function `call_api_analyse` is never used
+    --> src/lib.rs:3092:10
+     |
+3092 | async fn call_api_analyse(text:...
+     |          ^^^^^^^^^^^^^^^^
+
+warning: fields `icon` and `label` are never read
+    --> src/lib.rs:4026:14
+     |
+4025 | #[component]
+     | ------------ fields in this struct
+4026 | fn QuickChip(icon: &'static str, label: &...
+     |              ^^^^                ^^^^^
+
+warning: field `text` is never read
+    --> src/lib.rs:4036:17
+     |
+4035 | #[component]
+     | ------------ field in this struct
+4036 | fn ChatBubbleAi(text: &'static ...
+     |                 ^^^^
+
+warning: fields `text` and `time` are never read
+    --> src/lib.rs:4059:19
+     |
+4058 | #[component]
+     | ------------ fields in this struct
+4059 | fn ChatBubbleUser(text: &'static str, time: &...
+     |                   ^^^^                ^^^^
+
+warning: `oliv4600-pack` (lib) generated 25 warnings (run `cargo fix --lib -p oliv4600-pack` to apply 8 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+2026-04-20T07:14:28.036845Z  INFO applying new distribution
+2026-04-20T07:14:28.048764Z  INFO ✅ success
+ew distribution
+2026-04-20T07:14:26.129728Z  INFO ✅ success
+2026-04-20T07:14:26.129817Z  INFO 📡 serving static assets at -> /plugins/oliv4600-pack/app/
+2026-04-20T07:14:26.129870Z  INFO 📡 server listening at:
+2026-04-20T07:14:26.129874Z  INFO     🏠 http://127.0.0.1:8080/plugins/oliv4600-pack/app/
+2026-04-20T07:14:26.129876Z  INFO     🏠 http://[::1]:8080/plugins/oliv4600-pack/app/
+2026-04-20T07:14:26.131503Z  INFO     🏠 http://localhost.:8080/plugins/oliv4600-pack/app/
+2026-04-20T07:14:26.131610Z ERROR error from server task error=Address already in use (os error 48)
+2026-04-20T07:14:26.131681Z ERROR Address already in use (os error 48)
