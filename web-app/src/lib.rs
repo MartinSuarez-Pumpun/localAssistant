@@ -1,6 +1,7 @@
 mod chat;
 mod config_panel;
 mod file_browser;
+mod kiosk_exit;
 mod plugins;
 mod shell;
 

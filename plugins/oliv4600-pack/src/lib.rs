@@ -157,6 +157,46 @@ fn action_badge(action: &str) -> (&'static str, &'static str) {
     }
 }
 
+// ─── Pipeline job types ───────────────────────────────────────────────────────
+// (Defined here so DocumentCtx can reference them.)
+
+#[derive(Clone, PartialEq)]
+enum JobStatus {
+    Pending,
+    Running,
+    Done,
+    Error(String),
+}
+
+#[derive(Clone)]
+struct PipelineJob {
+    id:     u32,
+    action: String,
+    label:  String,
+    status: JobStatus,
+}
+
+// ─── AnalysisResult: estado parseado del análisis ─────────────────────────────
+// (Defined here so DocumentCtx can reference it.)
+
+#[derive(Clone, Default)]
+struct AnalysisResult {
+    // FOR-001: legibilidad
+    readability_raw:  String,   // texto libre del LLM
+    // TON-005 / TON-006: sentimiento
+    sentiment_raw:    String,
+    // FOR-002 / INV-*: anomalías (texto libre del LLM)
+    anomalies_raw:    String,
+    // EXT-001: entidades NER (texto libre, parseamos líneas)
+    ner_raw:          String,
+    // EXT-003 / EXT-004 / EXT-005: metadatos
+    keywords_raw:     String,
+    // EXT-006: timeline
+    timeline_raw:     String,
+    // EXT-007: impacto
+    impact_raw:       String,
+}
+
 // ─── Document Context ─────────────────────────────────────────────────────────
 // Compartido vía Leptos context (provide_context / use_context).
 // Creado en App, leído/escrito por todas las vistas.
@@ -179,20 +219,45 @@ struct DocumentCtx {
     /// Etiqueta de la última acción ejecutada
     output_label:   RwSignal<String>,
     /// Acción pre-seleccionada cuando se navega desde el Dashboard (slug)
-    pending_action: RwSignal<Option<String>>,
+    pending_action:    RwSignal<Option<String>>,
+    /// Incrementar para provocar un re-fetch de oliv_projects en el Sidebar
+    refresh_projects:  RwSignal<u32>,
+    // ── Persistent view state (survives view switches) ────────────────────────
+    chat_messages:       RwSignal<Vec<(String, String)>>,
+    pipeline_jobs:       RwSignal<Vec<PipelineJob>>,
+    pipeline_running:    RwSignal<bool>,
+    pipeline_action:     RwSignal<String>,
+    analysis_result:     RwSignal<Option<AnalysisResult>>,
+    analysis_loading:    RwSignal<bool>,
+    analysis_step:       RwSignal<&'static str>,
+    analysis_from_cache: RwSignal<bool>,
+    analysis_cached_at:  RwSignal<String>,
+    /// Upload/extract error message to show in the dashboard
+    upload_error:        RwSignal<Option<String>>,
 }
 
 impl DocumentCtx {
     fn new() -> Self {
         Self {
-            text:           RwSignal::new(String::new()),
-            filename:       RwSignal::new(String::new()),
-            word_count:     RwSignal::new(0),
-            doc_hash:       RwSignal::new(String::new()),
-            processing:     RwSignal::new(false),
-            output:         RwSignal::new(String::new()),
-            output_label:   RwSignal::new(String::new()),
-            pending_action: RwSignal::new(None),
+            text:             RwSignal::new(String::new()),
+            filename:         RwSignal::new(String::new()),
+            word_count:       RwSignal::new(0),
+            doc_hash:         RwSignal::new(String::new()),
+            processing:       RwSignal::new(false),
+            output:           RwSignal::new(String::new()),
+            output_label:     RwSignal::new(String::new()),
+            pending_action:      RwSignal::new(None),
+            refresh_projects:    RwSignal::new(0),
+            chat_messages:       RwSignal::new(Vec::new()),
+            pipeline_jobs:       RwSignal::new(vec![]),
+            pipeline_running:    RwSignal::new(false),
+            pipeline_action:     RwSignal::new("executive_summary".to_string()),
+            analysis_result:     RwSignal::new(None),
+            analysis_loading:    RwSignal::new(false),
+            analysis_step:       RwSignal::new(""),
+            analysis_from_cache: RwSignal::new(false),
+            analysis_cached_at:  RwSignal::new(String::new()),
+            upload_error:        RwSignal::new(None),
         }
     }
 }
@@ -205,27 +270,45 @@ impl DocumentCtx {
 fn upload_and_load(file: web_sys::File, ctx: DocumentCtx, set_active_view: WriteSignal<View>) {
     spawn_local(async move {
         ctx.processing.set(true);
+        ctx.upload_error.set(None);
+
+        macro_rules! bail {
+            ($msg:expr) => {{
+                ctx.upload_error.set(Some($msg.to_string()));
+                ctx.processing.set(false);
+                return;
+            }};
+        }
 
         // Step 1: upload
-        let form_data = web_sys::FormData::new().unwrap();
-        form_data.append_with_blob("file", &file).unwrap();
+        let form_data = match web_sys::FormData::new() {
+            Ok(f) => f,
+            Err(_) => bail!("No se pudo crear FormData"),
+        };
+        form_data.append_with_blob("file", &file).unwrap_or_default();
         let opts = web_sys::RequestInit::new();
         opts.set_method("POST");
         opts.set_body(&form_data.into());
-        let request = web_sys::Request::new_with_str_and_init("/upload", &opts).unwrap();
-        let window  = web_sys::window().unwrap();
+        let request = match web_sys::Request::new_with_str_and_init("/upload", &opts) {
+            Ok(r) => r,
+            Err(_) => bail!("Error al crear petición de subida"),
+        };
+        let window = web_sys::window().unwrap();
         let resp: web_sys::Response = match JsFuture::from(window.fetch_with_request(&request)).await {
             Ok(r)  => r.unchecked_into(),
-            Err(_) => { ctx.processing.set(false); return; }
+            Err(e) => bail!(format!("Error de red al subir: {:?}", e)),
         };
+        if !resp.ok() {
+            bail!(format!("Servidor rechazó la subida (HTTP {})", resp.status()));
+        }
         let json_str = match JsFuture::from(resp.text().unwrap()).await {
             Ok(t) => t.as_string().unwrap_or_default(),
-            Err(_) => { ctx.processing.set(false); return; }
+            Err(_) => bail!("Error leyendo respuesta de subida"),
         };
         let uploads: Vec<serde_json::Value> = serde_json::from_str(&json_str).unwrap_or_default();
         let path = match uploads.first().and_then(|u| u["path"].as_str()) {
             Some(p) => p.to_string(),
-            None    => { ctx.processing.set(false); return; }
+            None    => bail!("El servidor no devolvió la ruta del archivo subido"),
         };
 
         // Step 2: extract text
@@ -236,14 +319,20 @@ fn upload_and_load(file: web_sys::File, ctx: DocumentCtx, set_active_view: Write
         opts2.set_method("POST");
         opts2.set_body(&wasm_bindgen::JsValue::from_str(&extract_body));
         opts2.set_headers(&wasm_bindgen::JsValue::from(headers));
-        let req2 = web_sys::Request::new_with_str_and_init("/api/extract", &opts2).unwrap();
+        let req2 = match web_sys::Request::new_with_str_and_init("/api/extract", &opts2) {
+            Ok(r) => r,
+            Err(_) => bail!("Error al crear petición de extracción"),
+        };
         let resp2: web_sys::Response = match JsFuture::from(window.fetch_with_request(&req2)).await {
             Ok(r)  => r.unchecked_into(),
-            Err(_) => { ctx.processing.set(false); return; }
+            Err(e) => bail!(format!("Error de red al extraer texto: {:?}", e)),
         };
+        if !resp2.ok() {
+            bail!(format!("El servidor no pudo extraer el texto (HTTP {})", resp2.status()));
+        }
         let json2 = match JsFuture::from(resp2.text().unwrap()).await {
             Ok(t) => t.as_string().unwrap_or_default(),
-            Err(_) => { ctx.processing.set(false); return; }
+            Err(_) => bail!("Error leyendo respuesta de extracción"),
         };
         if let Ok(ex) = serde_json::from_str::<serde_json::Value>(&json2) {
             let text     = ex["text"].as_str().unwrap_or("").to_string();
@@ -273,6 +362,7 @@ fn upload_and_load(file: web_sys::File, ctx: DocumentCtx, set_active_view: Write
                         serde_json::json!(wc),
                     ],
                 ).await;
+                ctx.refresh_projects.update(|n| *n += 1);
             }
 
             set_active_view.set(View::Editor);
@@ -292,7 +382,13 @@ fn run_transform(
     spawn_local(async move {
         ctx.processing.set(true);
         ctx.output.set(String::new());
+        ctx.upload_error.set(None);
         ctx.output_label.set(action_label(&action).to_string());
+        web_sys::console::log_1(&format!(
+            "[oliv4600] run_transform action={action} words={} doc={:?}",
+            ctx.text.get_untracked().split_whitespace().count(),
+            ctx.filename.get_untracked()
+        ).into());
         let body = serde_json::json!({
             "text":         ctx.text.get_untracked(),
             "action":       action,
@@ -312,11 +408,68 @@ fn run_transform(
         let window = web_sys::window().unwrap();
         let resp: web_sys::Response = match JsFuture::from(window.fetch_with_request(&req)).await {
             Ok(r) => r.unchecked_into(),
-            Err(_) => { ctx.processing.set(false); return; }
+            Err(e) => {
+                ctx.upload_error.set(Some(format!("Error de red al generar: {:?}", e)));
+                ctx.processing.set(false);
+                return;
+            }
         };
+        if !resp.ok() {
+            ctx.upload_error.set(Some(format!("El servidor rechazó la transformación (HTTP {})", resp.status())));
+            ctx.processing.set(false);
+            return;
+        }
+        let action_clone = action.clone();
         read_sse_stream(resp,
             move |t| ctx.output.update(|s| s.push_str(&t)),
-            move || ctx.processing.set(false),
+            move || {
+                ctx.processing.set(false);
+                ctx.refresh_projects.update(|n| *n += 1);
+
+                let hash = ctx.doc_hash.get_untracked();
+                let output = ctx.output.get_untracked();
+
+                // Save output to disk (fire-and-forget)
+                if !hash.is_empty() && !output.is_empty() {
+                    let ts = js_sys::Date::now() as u64;
+                    let fname = format!("{}_{}.txt", action_clone, ts);
+                    let body = serde_json::json!({
+                        "doc_hash": hash.clone(),
+                        "filename": fname,
+                        "content": output,
+                    }).to_string();
+                    spawn_local(async move {
+                        let headers = web_sys::Headers::new().unwrap();
+                        headers.set("Content-Type", "application/json").unwrap();
+                        let opts = web_sys::RequestInit::new();
+                        opts.set_method("POST");
+                        opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+                        opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+                        let req = web_sys::Request::new_with_str_and_init(
+                            "/api/workspace/save", &opts,
+                        ).unwrap();
+                        let window = web_sys::window().unwrap();
+                        let _ = JsFuture::from(window.fetch_with_request(&req)).await;
+                    });
+                }
+
+                // Update transform_count in DB (fire-and-forget)
+                if !hash.is_empty() {
+                    let hash2 = hash.clone();
+                    spawn_local(async move {
+                        plugin_query(
+                            "UPDATE oliv_projects SET transform_count = transform_count + 1, \
+                             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE doc_hash = ?1",
+                            vec![serde_json::json!(hash2)],
+                        ).await;
+                    });
+                }
+            },
+            move |err| {
+                web_sys::console::error_1(&format!("[oliv4600] transform error: {err}").into());
+                ctx.upload_error.set(Some(format!("Error del motor: {err}")));
+                ctx.processing.set(false);
+            },
         ).await;
     });
 }
@@ -360,6 +513,12 @@ fn run_chat(ctx: DocumentCtx, messages: RwSignal<Vec<(String, String)>>, user_ms
         read_sse_stream(resp,
             move |t| messages.update(|v| { if let Some(e) = v.get_mut(ai_idx) { e.1.push_str(&t); } }),
             move || ctx.processing.set(false),
+            move |err| {
+                web_sys::console::error_1(&format!("[oliv4600] chat error: {err}").into());
+                messages.update(|v| {
+                    if let Some(e) = v.get_mut(ai_idx) { e.1.push_str(&format!("\n\n⚠️ Error: {err}")); }
+                });
+            },
         ).await;
     });
 }
@@ -368,28 +527,66 @@ fn run_chat(ctx: DocumentCtx, messages: RwSignal<Vec<(String, String)>>, user_ms
 // Lee un ReadableStream de texto/event-stream, parsea eventos y llama a on_token
 // por cada fragmento `event: token  data: {"text":"..."}` recibido.
 
-async fn read_sse_stream<F: Fn(String), D: Fn()>(resp: web_sys::Response, on_token: F, on_done: D) {
-    let reader: web_sys::ReadableStreamDefaultReader = match resp.body() {
-        Some(b) => b.get_reader().unchecked_into(),
-        None    => { on_done(); return; }
-    };
-    let mut buf = String::new();
-    loop {
-        let chunk = match JsFuture::from(reader.read()).await { Ok(c) => c, Err(_) => break };
-        if js_sys::Reflect::get(&chunk, &wasm_bindgen::JsValue::from_str("done"))
-            .ok().and_then(|v| v.as_bool()).unwrap_or(true) { break; }
-        let value = match js_sys::Reflect::get(&chunk, &wasm_bindgen::JsValue::from_str("value")) {
-            Ok(v) => v, Err(_) => break,
-        };
-        buf.push_str(&String::from_utf8_lossy(&js_sys::Uint8Array::new(&value).to_vec()));
+async fn read_sse_stream<F, D, E>(resp: web_sys::Response, on_token: F, on_done: D, on_error: E)
+where F: Fn(String), D: Fn(), E: Fn(String)
+{
+    fn parse_sse_buf<F, E>(buf: &mut String, on_token: &F, on_error: &E)
+    where F: Fn(String), E: Fn(String)
+    {
         while let Some(idx) = buf.find("\n\n") {
             let msg = buf[..idx].to_string();
-            buf = buf[idx + 2..].to_string();
+            *buf = buf[idx + 2..].to_string();
+            let mut event_type: String = "message".to_string();
+            let mut data_json: Option<serde_json::Value> = None;
             for line in msg.lines() {
-                if let Some(data) = line.strip_prefix("data: ") {
-                    if let Ok(ev) = serde_json::from_str::<serde_json::Value>(data) {
-                        if let Some(t) = ev["text"].as_str() { if !t.is_empty() { on_token(t.to_string()); } }
+                if let Some(e) = line.strip_prefix("event: ") {
+                    event_type = e.trim().to_string();
+                } else if let Some(d) = line.strip_prefix("data: ") {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(d) {
+                        data_json = Some(v);
                     }
+                }
+            }
+            if let Some(ev) = data_json {
+                if event_type == "error" {
+                    let m = ev["message"].as_str().unwrap_or("Error desconocido").to_string();
+                    on_error(m);
+                } else if let Some(t) = ev["text"].as_str() {
+                    if !t.is_empty() { on_token(t.to_string()); }
+                }
+            }
+        }
+    }
+
+    match resp.body() {
+        Some(body) => {
+            // Streaming path — supported on modern browsers and WebKitGTK ≥2.36
+            let reader: web_sys::ReadableStreamDefaultReader = body.get_reader().unchecked_into();
+            let mut buf = String::new();
+            loop {
+                let chunk = match JsFuture::from(reader.read()).await { Ok(c) => c, Err(_) => break };
+                if js_sys::Reflect::get(&chunk, &wasm_bindgen::JsValue::from_str("done"))
+                    .ok().and_then(|v| v.as_bool()).unwrap_or(true) { break; }
+                let value = match js_sys::Reflect::get(&chunk, &wasm_bindgen::JsValue::from_str("value")) {
+                    Ok(v) => v, Err(_) => break,
+                };
+                buf.push_str(&String::from_utf8_lossy(&js_sys::Uint8Array::new(&value).to_vec()));
+                parse_sse_buf(&mut buf, &on_token, &on_error);
+            }
+            // flush remaining
+            if !buf.is_empty() {
+                buf.push_str("\n\n");
+                parse_sse_buf(&mut buf, &on_token, &on_error);
+            }
+        }
+        None => {
+            // Fallback for environments where body streaming is unavailable:
+            // read the full SSE response as text and parse it at once.
+            if let Ok(text_promise) = resp.text() {
+                if let Ok(js_text) = JsFuture::from(text_promise).await {
+                    let mut buf = js_text.as_string().unwrap_or_default();
+                    buf.push_str("\n\n");
+                    parse_sse_buf(&mut buf, &on_token, &on_error);
                 }
             }
         }
@@ -707,28 +904,33 @@ fn Sidebar(
     // ── Live recent documents from SQLite ─────────────────────────────────────
     // JsFuture is !Send (uses Rc internally), so we can't use Resource::new.
     // Instead: populate a signal via spawn_local (single-threaded WASM executor).
-    // Proyectos recientes — el plugin consulta su propia tabla vía plugin_query
+    // Proyectos recientes — el plugin consulta su propia tabla vía plugin_query.
+    // create_effect tracks ctx.refresh_projects so the list re-fetches on upload/transform.
+    let ctx = use_context::<DocumentCtx>().unwrap();
     let recent_docs: RwSignal<Option<Vec<ApiProject>>> = RwSignal::new(None);
-    spawn_local(async move {
-        let rows = plugin_query(
-            "SELECT doc_hash, doc_name, original_path, word_count, \
-             transform_count, has_analysis, created_at, updated_at \
-             FROM oliv_projects ORDER BY updated_at DESC LIMIT 5",
-            vec![],
-        ).await;
-        let projects = rows.into_iter().filter_map(|r| {
-            Some(ApiProject {
-                doc_hash:        r["doc_hash"].as_str()?.to_string(),
-                doc_name:        r["doc_name"].as_str()?.to_string(),
-                original_path:   r["original_path"].as_str()?.to_string(),
-                word_count:      r["word_count"].as_u64()? as u32,
-                transform_count: r["transform_count"].as_u64()? as u32,
-                has_analysis:    r["has_analysis"].as_i64()? != 0,
-                created_at:      r["created_at"].as_str()?.to_string(),
-                updated_at:      r["updated_at"].as_str()?.to_string(),
-            })
-        }).collect::<Vec<_>>();
-        recent_docs.set(Some(projects));
+    create_effect(move |_| {
+        let _ = ctx.refresh_projects.get(); // track signal — re-run when it changes
+        spawn_local(async move {
+            let rows = plugin_query(
+                "SELECT doc_hash, doc_name, original_path, word_count, \
+                 transform_count, has_analysis, created_at, updated_at \
+                 FROM oliv_projects ORDER BY updated_at DESC LIMIT 5",
+                vec![],
+            ).await;
+            let projects = rows.into_iter().filter_map(|r| {
+                Some(ApiProject {
+                    doc_hash:        r["doc_hash"].as_str()?.to_string(),
+                    doc_name:        r["doc_name"].as_str()?.to_string(),
+                    original_path:   r["original_path"].as_str()?.to_string(),
+                    word_count:      r["word_count"].as_u64()? as u32,
+                    transform_count: r["transform_count"].as_u64()? as u32,
+                    has_analysis:    r["has_analysis"].as_i64()? != 0,
+                    created_at:      r["created_at"].as_str()?.to_string(),
+                    updated_at:      r["updated_at"].as_str()?.to_string(),
+                })
+            }).collect::<Vec<_>>();
+            recent_docs.set(Some(projects));
+        });
     });
 
     view! {
@@ -1143,6 +1345,20 @@ fn DashboardView(
                 </div>
             </div>
 
+            // Upload error banner
+            {move || ctx.upload_error.get().map(|err| view! {
+                <div class="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                    <span class="material-symbols-outlined text-[18px] shrink-0">"error"</span>
+                    <span>{err}</span>
+                    <button
+                        class="ml-auto text-red-400 hover:text-red-700"
+                        on:click=move |_| ctx.upload_error.set(None)
+                    >
+                        <span class="material-symbols-outlined text-[16px]">"close"</span>
+                    </button>
+                </div>
+            })}
+
             // ── Quick Actions Grid (asymmetric 5-col) ──────────────────────────
             // These cards are shortcuts into specific transformation modules.
             // Clicking any card should: check if a document is loaded → if not,
@@ -1498,6 +1714,32 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                                     ctx.word_count.set(
                                         ctx.text.get_untracked().split_whitespace().count() as u32
                                     );
+                                    // Auto-create scratch project when typing without an uploaded doc
+                                    let current_text = ctx.text.get_untracked();
+                                    let current_hash = ctx.doc_hash.get_untracked();
+                                    if current_hash.is_empty() && current_text.len() >= 50 {
+                                        let ts = js_sys::Date::now() as u64;
+                                        let scratch_hash = format!("scratch_{}", ts);
+                                        let doc_name = "Documento sin título".to_string();
+                                        let wc = current_text.split_whitespace().count() as u32;
+                                        ctx.doc_hash.set(scratch_hash.clone());
+                                        ctx.filename.set(doc_name.clone());
+                                        ctx.word_count.set(wc);
+                                        spawn_local(async move {
+                                            plugin_query(
+                                                "INSERT OR IGNORE INTO oliv_projects \
+                                                 (doc_hash, doc_name, original_path, word_count) \
+                                                 VALUES (?1, ?2, '', ?3)",
+                                                vec![
+                                                    serde_json::json!(scratch_hash),
+                                                    serde_json::json!(doc_name),
+                                                    serde_json::json!(wc),
+                                                ],
+                                            ).await;
+                                        });
+                                        // Trigger sidebar refresh
+                                        ctx.refresh_projects.update(|n| *n += 1);
+                                    }
                                 }
                             />
                         }.into_any()
@@ -1765,6 +2007,20 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                     </div>
                 </div>
 
+                // Error banner (transform errors)
+                {move || ctx.upload_error.get().map(|err| view! {
+                    <div class="flex items-center gap-3 mx-4 mt-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                        <span class="material-symbols-outlined text-[18px] shrink-0">"error"</span>
+                        <span>{err}</span>
+                        <button
+                            class="ml-auto text-red-400 hover:text-red-700"
+                            on:click=move |_| ctx.upload_error.set(None)
+                        >
+                            <span class="material-symbols-outlined text-[16px]">"close"</span>
+                        </button>
+                    </div>
+                })}
+
                 // Área de texto generado
                 <div class="flex-1 p-12 overflow-y-auto">
                     {move || if has_output() {
@@ -2031,26 +2287,6 @@ async fn sha256_hex(text: &str) -> Option<String> {
     Some(hash_bytes.iter().map(|b| format!("{:02x}", b)).collect())
 }
 
-// ─── AnalysisResult: estado parseado del análisis ─────────────────────────────
-
-#[derive(Clone, Default)]
-struct AnalysisResult {
-    // FOR-001: legibilidad
-    readability_raw:  String,   // texto libre del LLM
-    // TON-005 / TON-006: sentimiento
-    sentiment_raw:    String,
-    // FOR-002 / INV-*: anomalías (texto libre del LLM)
-    anomalies_raw:    String,
-    // EXT-001: entidades NER (texto libre, parseamos líneas)
-    ner_raw:          String,
-    // EXT-003 / EXT-004 / EXT-005: metadatos
-    keywords_raw:     String,
-    // EXT-006: timeline
-    timeline_raw:     String,
-    // EXT-007: impacto
-    impact_raw:       String,
-}
-
 // Acumula la respuesta SSE de una acción de análisis y devuelve el texto completo.
 // Usa Rc<RefCell<String>> para acumular sin necesitar RwSignal fuera del componente.
 async fn collect_action(text: String, action: &'static str) -> String {
@@ -2083,6 +2319,7 @@ async fn collect_action(text: String, action: &'static str) -> String {
         resp,
         move |t| buf2.borrow_mut().push_str(&t),
         || {},
+        |err| web_sys::console::error_1(&format!("[oliv4600] pipeline error: {err}").into()),
     ).await;
     let result = buf.borrow().clone();
     result
@@ -2290,12 +2527,12 @@ async fn do_analysis(
 fn AnalysisView() -> impl IntoView {
     let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
 
-    // Estado reactivo del informe de análisis
-    let result:       RwSignal<Option<AnalysisResult>> = RwSignal::new(None);
-    let analyzing:    RwSignal<bool>                   = RwSignal::new(false);
-    let current_step: RwSignal<&'static str>           = RwSignal::new("");
-    let from_cache:   RwSignal<bool>                   = RwSignal::new(false);
-    let cached_at:    RwSignal<String>                 = RwSignal::new(String::new());
+    // Estado reactivo del informe de análisis (persisted in ctx)
+    let result       = ctx.analysis_result;
+    let analyzing    = ctx.analysis_loading;
+    let current_step = ctx.analysis_step;
+    let from_cache   = ctx.analysis_from_cache;
+    let cached_at    = ctx.analysis_cached_at;
     // Toast de exportación
     let toast:        RwSignal<Option<String>>          = RwSignal::new(None);
 
@@ -2680,7 +2917,7 @@ fn ChatView() -> impl IntoView {
 
     // Estado reactivo de la conversación (CHA-004)
     // Cada tupla: ("user" | "assistant", texto)
-    let messages: RwSignal<Vec<(String, String)>> = RwSignal::new(Vec::new());
+    let messages = ctx.chat_messages;
     let (input_text, set_input_text) = signal(String::new());
 
     // Macro local para no repetir la lógica de envío en cada handler.
@@ -3046,201 +3283,378 @@ fn ChatAnswerPoint(n: &'static str, title: &'static str, text: &'static str) -> 
 // TODO (EXP-005): "Export Package" → ZIP with all derived documents in a structured
 // folder hierarchy: /expedition-{id}/source.docx, /summary.pdf, /press-release.docx, etc.
 
+/// Run a single transform action as part of the pipeline queue.
+/// Posts to /api/transform and reads the full SSE stream, collecting all tokens.
+/// On success saves the output to /api/workspace/save (fire-and-forget).
+/// Returns Ok(full_output) or Err(error_message).
+async fn run_pipeline_job(ctx: DocumentCtx, action: String) -> Result<String, String> {
+    let text     = ctx.text.get_untracked();
+    let doc_name = ctx.filename.get_untracked();
+    let doc_hash = ctx.doc_hash.get_untracked();
+
+    let body = serde_json::json!({
+        "text":         text,
+        "action":       action.clone(),
+        "doc_name":     doc_name,
+        "length_words": 300u32,
+        "tone":         "50",
+        "audience":     "general",
+        "language":     "es",
+    }).to_string();
+
+    let headers = web_sys::Headers::new().map_err(|_| "headers error".to_string())?;
+    headers.set("Content-Type", "application/json").map_err(|_| "header set error".to_string())?;
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+    opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+
+    let req = web_sys::Request::new_with_str_and_init("/api/transform", &opts)
+        .map_err(|_| "request init error".to_string())?;
+    let window = web_sys::window().ok_or_else(|| "no window".to_string())?;
+    let resp: web_sys::Response = JsFuture::from(window.fetch_with_request(&req))
+        .await
+        .map_err(|e| format!("fetch error: {:?}", e))?
+        .unchecked_into();
+
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+
+    // Read SSE stream and collect all tokens
+    let reader: web_sys::ReadableStreamDefaultReader = match resp.body() {
+        Some(b) => b.get_reader().unchecked_into(),
+        None    => return Err("empty response body".to_string()),
+    };
+
+    let mut buf    = String::new();
+    let mut output = String::new();
+
+    loop {
+        let chunk = match JsFuture::from(reader.read()).await {
+            Ok(c)  => c,
+            Err(_) => break,
+        };
+        if js_sys::Reflect::get(&chunk, &wasm_bindgen::JsValue::from_str("done"))
+            .ok().and_then(|v| v.as_bool()).unwrap_or(true) { break; }
+        let value = match js_sys::Reflect::get(&chunk, &wasm_bindgen::JsValue::from_str("value")) {
+            Ok(v)  => v,
+            Err(_) => break,
+        };
+        buf.push_str(&String::from_utf8_lossy(&js_sys::Uint8Array::new(&value).to_vec()));
+        while let Some(idx) = buf.find("\n\n") {
+            let msg = buf[..idx].to_string();
+            buf = buf[idx + 2..].to_string();
+            for line in msg.lines() {
+                if let Some(data) = line.strip_prefix("data: ") {
+                    if let Ok(ev) = serde_json::from_str::<serde_json::Value>(data) {
+                        if let Some(t) = ev["text"].as_str() {
+                            if !t.is_empty() { output.push_str(t); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if output.is_empty() {
+        return Err("no output received".to_string());
+    }
+
+    // Save to workspace (fire-and-forget)
+    if !doc_hash.is_empty() {
+        let ts    = js_sys::Date::now() as u64;
+        let fname = format!("{}_{}.txt", action, ts);
+        let save_body = serde_json::json!({
+            "doc_hash": doc_hash.clone(),
+            "filename": fname,
+            "content":  output.clone(),
+        }).to_string();
+        let output_clone = output.clone();
+        let _ = output_clone; // suppress unused warning
+        spawn_local(async move {
+            let headers = web_sys::Headers::new().unwrap();
+            headers.set("Content-Type", "application/json").unwrap();
+            let opts = web_sys::RequestInit::new();
+            opts.set_method("POST");
+            opts.set_body(&wasm_bindgen::JsValue::from_str(&save_body));
+            opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+            if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/workspace/save", &opts) {
+                if let Some(w) = web_sys::window() {
+                    let _ = JsFuture::from(w.fetch_with_request(&req)).await;
+                }
+            }
+            // Update transform_count
+            plugin_query(
+                "UPDATE oliv_projects SET transform_count = transform_count + 1, \
+                 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE doc_hash = ?1",
+                vec![serde_json::json!(doc_hash)],
+            ).await;
+        });
+    }
+
+    Ok(output)
+}
+
 #[component]
 fn PipelineView() -> impl IntoView {
-    let show_note = RwSignal::new(true);
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx must be provided");
+
+    // ── State (persisted in ctx) ───────────────────────────────────────────────
+    let jobs            = ctx.pipeline_jobs;
+    let next_id: RwSignal<u32> = RwSignal::new(1);
+    let running         = ctx.pipeline_running;
+    let selected_action = ctx.pipeline_action;
+
+    // ── Add-job handler ────────────────────────────────────────────────────────
+    let on_add = {
+        let jobs = jobs;
+        let next_id = next_id;
+        let selected_action = selected_action;
+        move |_| {
+            let action = selected_action.get_untracked();
+            let label  = action_label(&action).to_string();
+            let id     = next_id.get_untracked();
+            next_id.update(|n| *n += 1);
+            jobs.update(|v| v.push(PipelineJob { id, action, label, status: JobStatus::Pending }));
+        }
+    };
+
+    // ── Run-all handler ────────────────────────────────────────────────────────
+    let on_run = {
+        let ctx     = ctx;
+        let jobs    = jobs;
+        let running = running;
+        move |_| {
+            let ctx     = ctx;
+            let jobs_signal = jobs;
+            let running = running;
+            spawn_local(async move {
+                running.set(true);
+                let job_list = jobs_signal.get_untracked();
+                for (i, job) in job_list.iter().enumerate() {
+                    if job.status != JobStatus::Pending { continue; }
+                    // Mark as running
+                    jobs_signal.update(|v| {
+                        if let Some(j) = v.get_mut(i) { j.status = JobStatus::Running; }
+                    });
+                    let result = run_pipeline_job(ctx, job.action.clone()).await;
+                    jobs_signal.update(|v| {
+                        if let Some(j) = v.get_mut(i) {
+                            j.status = match result {
+                                Ok(_)  => JobStatus::Done,
+                                Err(e) => JobStatus::Error(e),
+                            };
+                        }
+                    });
+                }
+                running.set(false);
+                // Refresh sidebar project list
+                ctx.refresh_projects.update(|n| *n += 1);
+            });
+        }
+    };
+
     view! {
-        <section class="p-12 flex flex-col min-h-full">
+        <section class="p-12 flex flex-col min-h-full gap-10">
 
             // ── Header ─────────────────────────────────────────────────────────
-            <div class="flex justify-between items-end mb-16">
-                <div>
-                    <h2 class="font-sans text-4xl font-black text-primary tracking-tight mb-2">
-                        "Production Pipeline"
-                    </h2>
-                    <p class="font-serif text-slate-500 text-xl max-w-2xl">
-                        "Visualizing the propagation of institutional intelligence from source to distribution nodes."
-                    </p>
-                </div>
-                // TODO (CAD-002): "Regenerate Full Pipeline" → POST /api/pipeline/regenerate
-                // with { project_id }. Server queues all pending transformation jobs and
-                // streams progress events back. Rotate the icon while processing.
-                <button class="group flex items-center gap-3 bg-[#401700] text-white px-8 py-4 rounded-lg font-sans font-bold text-sm tracking-widest uppercase hover:bg-[#622700] transition-all shadow-xl">
-                    <span class="material-symbols-outlined group-hover:rotate-180 transition-transform duration-500">
-                        "cached"
-                    </span>
-                    "Regenerate Full Pipeline"
-                </button>
+            <div>
+                <h2 class="font-sans text-4xl font-black text-[#002542] tracking-tight mb-2">
+                    "Production Pipeline"
+                </h2>
+                <p class="font-serif italic text-slate-500 text-xl max-w-2xl">
+                    "Cola de transformaciones por lotes — ejecuta múltiples acciones secuencialmente sobre el documento cargado."
+                </p>
             </div>
 
-            // ── Horizontal Pipeline Visualizer ─────────────────────────────────
-            // Nodes are connected by horizontal lines (CSS ::after pseudo-element).
-            // Each node represents either the root document or a derived output.
-            // TODO: make this list dynamic — fetch nodes from GET /api/pipeline/{project_id}
-            // which returns the derivation DAG from SQLite (TRA-002).
-            // TODO (CAD-005): add a temporal sequencing view that shows:
-            //   convocatoria → recordatorio → nota del día → resumen posterior
-            // with scheduled send dates attached to each node.
-            <div class="flex-1 flex items-center overflow-x-auto pb-12">
-                <div class="flex gap-12 items-stretch">
-
-                    // Node: Root Source Document
-                    // The "ROOT AUTHORITY" — all derived documents trace back here.
-                    // The "SOURCE UPDATED" badge appears when the source has been modified
-                    // after derived documents were generated (CAD-003 propagation pending).
-                    <PipelineSourceNode/>
-
-                    // Node: Executive Summary (Derived Layer 01)
-                    // Status: Edited — human has modified the AI output.
-                    // TODO: "Edited" badge appears when the output has been manually changed
-                    // after generation. Store a dirty flag in SQLite alongside the output.
-                    <PipelineDerivedNode
-                        layer="Derived Layer 01"
-                        icon="summarize"
-                        icon_color="text-blue-500"
-                        accent_color="bg-blue-500"
-                        title="Executive Summary"
-                        desc="Synthesized high-level overview for leadership alignment."
-                        status="Edited"
-                        status_class="bg-blue-50 text-blue-600"
-                        locked=false
-                        waiting_for=""
-                    />
-
-                    // Node: Press Release (Derived Layer 02)
-                    // Status: Generated — AI output not yet reviewed by human.
-                    // TODO: "Review Now" CTA should navigate to EditorView with this
-                    // specific derived document loaded in the result panel for editing.
-                    <PipelineDerivedNode
-                        layer="Derived Layer 02"
-                        icon="news"
-                        icon_color="text-emerald-500"
-                        accent_color="bg-emerald-500"
-                        title="Press Release"
-                        desc="External-facing communiqué for global media distribution."
-                        status="Generated"
-                        status_class="bg-emerald-50 text-emerald-600"
-                        locked=false
-                        waiting_for=""
-                    />
-
-                    // Node: LinkedIn Post (Social Amplification)
-                    // Status: Pending — waiting for Press Release (Layer 02) to be approved.
-                    // TODO (CAD-002): enforce dependency order — don't generate social posts
-                    // until the upstream press release has been reviewed (status = "Approved").
-                    // This prevents propagating errors from the press release into social copy.
-                    <PipelineDerivedNode
-                        layer="Social Amplification"
-                        icon="share"
-                        icon_color="text-slate-400"
-                        accent_color="bg-slate-300"
-                        title="LinkedIn Post"
-                        desc="Narrative-driven professional update for corporate ecosystem."
-                        status="Pending"
-                        status_class="bg-slate-200 text-slate-500"
-                        locked=true
-                        waiting_for="Awaiting Layer 02..."
-                    />
-
-                    // Node: Twitter/X Thread (Viral Extraction)
-                    // Status: Pending — also waiting for Press Release approval.
-                    // TODO (GEN-004): Twitter thread generation respects the 280-char limit
-                    // per tweet. The LLM prompt includes: "Split this into N tweets,
-                    // each ≤280 chars, numbered 1/N...N/N".
-                    <PipelineDerivedNode
-                        layer="Viral Extraction"
-                        icon="rebase_edit"
-                        icon_color="text-slate-400"
-                        accent_color="bg-slate-300"
-                        title="Twitter / X Thread"
-                        desc="Concise, high-impact data points for rapid discourse."
-                        status="Pending"
-                        status_class="bg-slate-200 text-slate-500"
-                        locked=true
-                        waiting_for="Awaiting Layer 02..."
-                    />
-
-                    // TODO (GEN-007 + GEN-009): add more nodes as needed:
-                    //   - Email Newsletter (GEN-007)
-                    //   - FAQ Document (GEN-009)
-                    //   - Blog Article (GEN-005)
-                    // Nodes beyond the viewport scroll horizontally.
-                </div>
-            </div>
-
-            // ── Footer Metadata ────────────────────────────────────────────────
-            // Pipeline health and synchronization status.
-            // TODO: drive "Last Synced" from the project's last-modified timestamp.
-            // "Pipeline Health" should count active/failed/pending jobs.
-            // "AI Confidence" is the average VER-004 confidence score across all generated nodes.
-            <div class="grid grid-cols-4 gap-8 pt-8 border-t border-slate-200">
-                <div class="flex flex-col gap-1">
-                    <span class="font-sans text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        "Last Synced"
+            // ── No document warning ────────────────────────────────────────────
+            {move || ctx.text.get().is_empty().then(|| view! {
+                <div class="flex items-center gap-3 bg-amber-50 border border-amber-200 px-5 py-4 rounded">
+                    <span class="material-symbols-outlined text-amber-500">"info"</span>
+                    <span class="font-sans text-sm text-amber-800">
+                        "Carga un documento en el Editor para poder añadir trabajos a la cola."
                     </span>
-                    <span class="font-serif italic text-primary">"12 Oct 2026, 14:32:01 GMT"</span>
-                </div>
-                <div class="flex flex-col gap-1">
-                    <span class="font-sans text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        "Pipeline Health"
-                    </span>
-                    <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
-                        <span class="font-serif italic text-primary">"Stable — 2 active workers"</span>
-                    </div>
-                </div>
-                <div class="flex flex-col gap-1">
-                    <span class="font-sans text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        "AI Confidence"
-                    </span>
-                    <div class="w-full bg-slate-200 h-1 mt-2">
-                        <div class="bg-primary h-1 w-[94%]"></div>
-                    </div>
-                </div>
-                <div class="flex flex-col gap-1 text-right">
-                    <span class="font-sans text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        "System State"
-                    </span>
-                    <span class="font-sans font-bold text-emerald-600 uppercase text-[10px]">
-                        "Ready for Propagation"
-                    </span>
-                </div>
-            </div>
-
-            // ── Floating Architect's Note (Glassmorphism panel) ────────────────
-            // Architect's Note — dismissable con señal reactiva
-            {move || show_note.get().then(|| view! {
-                <div class="fixed bottom-12 right-12 w-80 bg-white/70 backdrop-blur-2xl p-6 shadow-2xl border border-white/40 rounded-lg z-50">
-                    <div class="flex items-start gap-4">
-                        <div class="p-2 bg-[#C45911]/10 text-[#C45911] rounded">
-                            <span class="material-symbols-outlined text-lg">"insights"</span>
-                        </div>
-                        <div class="flex-1">
-                            <h5 class="font-sans font-bold text-xs uppercase tracking-tight text-primary mb-2">
-                                "Architect's Note"
-                            </h5>
-                            <p class="text-sm font-serif text-slate-600 leading-relaxed">
-                                "Source document changes detected in "
-                                <span class="font-bold text-primary">"Section 4.2"</span>
-                                ". Recommended regeneration of the "
-                                <span class="italic">"Press Release"</span>
-                                " node to maintain integrity."
-                            </p>
-                            <div class="mt-4 flex gap-3">
-                                <button class="text-[10px] font-sans font-black uppercase tracking-wider text-primary border-b border-primary pb-0.5">
-                                    "Accept"
-                                </button>
-                                <button
-                                    class="text-[10px] font-sans font-black uppercase tracking-wider text-slate-400 hover:text-red-500 transition-colors"
-                                    on:click=move |_| show_note.set(false)
-                                >
-                                    "Dismiss"
-                                </button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             })}
+
+            // ── Add Job UI ─────────────────────────────────────────────────────
+            <div class="flex flex-col gap-3">
+                <span class="font-sans text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    "Añadir transformación a la cola"
+                </span>
+                <div class="flex items-center gap-4">
+                    <select
+                        class="flex-1 border border-slate-300 bg-white px-4 py-2 font-sans text-sm text-[#002542] focus:outline-none focus:border-[#002542]"
+                        on:change=move |ev| {
+                            selected_action.set(event_target_value(&ev));
+                        }
+                    >
+                        // Summaries
+                        <option value="executive_summary">"Resumen Ejecutivo"</option>
+                        <option value="technical_summary">"Resumen Técnico"</option>
+                        <option value="divulgative_summary">"Resumen Divulgativo"</option>
+                        <option value="bullet_summary">"Puntos Clave"</option>
+                        // Press / Social
+                        <option value="press_release">"Nota de Prensa"</option>
+                        <option value="headlines">"Titulares"</option>
+                        <option value="linkedin_post">"Post LinkedIn"</option>
+                        // Analysis
+                        <option value="sentiment_analysis">"Análisis de Sentimiento"</option>
+                        <option value="ner_extraction">"Extracción de Entidades (NER)"</option>
+                        <option value="readability_analysis">"Análisis de Legibilidad"</option>
+                    </select>
+                    <button
+                        class="flex items-center gap-2 bg-[#002542] text-white px-6 py-2 font-sans font-bold text-sm uppercase tracking-widest hover:bg-[#003b65] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled=move || ctx.text.get().is_empty() || running.get()
+                        on:click=on_add
+                    >
+                        <span class="material-symbols-outlined text-base">"add"</span>
+                        "Añadir a cola"
+                    </button>
+                </div>
+            </div>
+
+            // ── Job Queue ──────────────────────────────────────────────────────
+            <div class="flex flex-col gap-2 flex-1">
+                <span class="font-sans text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    {move || format!("Cola de trabajos ({} en total)", jobs.get().len())}
+                </span>
+
+                {move || {
+                    let job_list = jobs.get();
+                    if job_list.is_empty() {
+                        view! {
+                            <div class="flex items-center justify-center py-16 text-slate-400 font-serif italic">
+                                "La cola está vacía. Añade transformaciones arriba."
+                            </div>
+                        }.into_any()
+                    } else {
+                        view! {
+                            <div class="flex flex-col divide-y divide-slate-100">
+                                {job_list.into_iter().map(|job| {
+                                    let job_id = job.id;
+                                    let label  = job.label.clone();
+                                    let status = job.status.clone();
+
+                                    let (badge_class, badge_label, pulse) = match &status {
+                                        JobStatus::Pending      => ("bg-slate-100 text-slate-500",       "Pendiente",  false),
+                                        JobStatus::Running      => ("bg-blue-100 text-blue-700",          "Ejecutando", true),
+                                        JobStatus::Done         => ("bg-emerald-100 text-emerald-700",    "Listo",      false),
+                                        JobStatus::Error(_)     => ("bg-red-100 text-red-700",            "Error",      false),
+                                    };
+
+                                    let error_msg = if let JobStatus::Error(ref e) = status {
+                                        Some(e.clone())
+                                    } else {
+                                        None
+                                    };
+
+                                    let can_remove = matches!(status, JobStatus::Pending);
+                                    let is_running_sig = running;
+
+                                    view! {
+                                        <div class="flex items-center gap-4 py-3 px-1">
+                                            // Job label
+                                            <span class="flex-1 font-sans text-sm text-[#002542] font-bold">
+                                                {label}
+                                            </span>
+
+                                            // Status badge
+                                            <span class=format!(
+                                                "px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded {}{}",
+                                                badge_class,
+                                                if pulse { " animate-pulse" } else { "" }
+                                            )>
+                                                {badge_label}
+                                            </span>
+
+                                            // Error detail
+                                            {error_msg.map(|e| {
+                                                let title = e.clone();
+                                                view! {
+                                                    <span class="text-[11px] text-red-500 font-serif italic max-w-xs truncate" title=title>
+                                                        {e}
+                                                    </span>
+                                                }
+                                            })}
+
+                                            // Remove button (only for Pending, only when not running)
+                                            {move || (can_remove && !is_running_sig.get()).then(|| {
+                                                let jobs_inner = jobs;
+                                                view! {
+                                                    <button
+                                                        class="text-slate-400 hover:text-red-500 transition-colors"
+                                                        title="Eliminar de la cola"
+                                                        on:click=move |_| {
+                                                            jobs_inner.update(|v| v.retain(|j| j.id != job_id));
+                                                        }
+                                                    >
+                                                        <span class="material-symbols-outlined text-base">"close"</span>
+                                                    </button>
+                                                }
+                                            })}
+                                        </div>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        }.into_any()
+                    }
+                }}
+            </div>
+
+            // ── Controls ───────────────────────────────────────────────────────
+            <div class="flex items-center justify-between pt-6 border-t border-slate-200">
+                <div class="flex items-center gap-3">
+                    // Stats
+                    {move || {
+                        let list = jobs.get();
+                        let total   = list.len();
+                        let done    = list.iter().filter(|j| matches!(j.status, JobStatus::Done)).count();
+                        let errors  = list.iter().filter(|j| matches!(j.status, JobStatus::Error(_))).count();
+                        view! {
+                            <span class="font-sans text-xs text-slate-400">
+                                {format!("{done}/{total} completados")}
+                                {(errors > 0).then(|| format!(" · {errors} errores"))}
+                            </span>
+                        }
+                    }}
+                </div>
+                <div class="flex items-center gap-4">
+                    // Clear queue button
+                    <button
+                        class="font-sans text-xs text-slate-400 hover:text-red-500 transition-colors disabled:opacity-30"
+                        disabled=move || jobs.get().is_empty() || running.get()
+                        on:click=move |_| jobs.update(|v| v.retain(|j| !matches!(j.status, JobStatus::Pending)))
+                    >
+                        "Limpiar pendientes"
+                    </button>
+                    // Run all button
+                    <button
+                        class="flex items-center gap-2 bg-[#002542] text-white px-8 py-3 font-sans font-bold text-sm uppercase tracking-widest hover:bg-[#003b65] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled=move || {
+                            jobs.get().is_empty()
+                            || running.get()
+                            || ctx.text.get().is_empty()
+                            || !jobs.get().iter().any(|j| j.status == JobStatus::Pending)
+                        }
+                        on:click=on_run
+                    >
+                        {move || if running.get() {
+                            view! {
+                                <span class="material-symbols-outlined text-base animate-spin">"sync"</span>
+                                "Ejecutando…"
+                            }.into_any()
+                        } else {
+                            view! {
+                                <span class="material-symbols-outlined text-base">"play_arrow"</span>
+                                "Ejecutar todo"
+                            }.into_any()
+                        }}
+                    </button>
+                </div>
+            </div>
+
         </section>
     }
 }
@@ -3714,44 +4128,140 @@ fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
     }
 }
 
+/// Audit log row returned by GET /api/audit
+#[derive(Clone, Deserialize)]
+struct AuditRow {
+    #[allow(dead_code)]
+    id:         i64,
+    event_type: String,
+    payload:    String,
+    ts:         String,
+}
+
 #[component]
 fn AuditView() -> impl IntoView {
+    let rows: RwSignal<Option<Vec<AuditRow>>> = RwSignal::new(None);
+
+    spawn_local(async move {
+        let data = fetch_json::<ApiResponse<AuditRow>>("/api/audit?limit=100")
+            .await
+            .map(|r| r.data)
+            .unwrap_or_default();
+        rows.set(Some(data));
+    });
+
+    let on_export = move |_| {
+        spawn_local(async move {
+            if let Some(json) = fetch_json::<serde_json::Value>("/api/audit?limit=5000").await {
+                let text = serde_json::to_string_pretty(&json).unwrap_or_default();
+                if let Some(window) = web_sys::window() {
+                    if let Some(doc) = window.document() {
+                        if let Ok(el) = doc.create_element("a") {
+                            let a: web_sys::HtmlAnchorElement = el.unchecked_into();
+                            let encoded = js_sys::encode_uri_component(&text)
+                                .as_string()
+                                .unwrap_or_default();
+                            let data_url = format!(
+                                "data:application/json;charset=utf-8,{}",
+                                encoded
+                            );
+                            a.set_href(&data_url);
+                            a.set_download("audit_log.json");
+                            if let Some(body) = doc.body() {
+                                let _ = body.append_child(&a);
+                                a.click();
+                                let _ = body.remove_child(&a);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    };
+
     view! {
         <div class="p-10 max-w-7xl mx-auto">
-            <header class="mb-10">
-                <h2 class="text-4xl font-sans font-black tracking-tighter text-primary uppercase">
-                    "Audit Log"
-                </h2>
-                <p class="font-serif italic text-xl text-outline mt-1">
-                    "Tamper-evident operation record — ENS Category Alta"
-                </p>
+            // ── Header ────────────────────────────────────────────────────────
+            <header class="mb-10 flex items-start justify-between">
+                <div>
+                    <h2 class="text-4xl font-sans font-black tracking-tighter text-primary uppercase">
+                        "Audit Log"
+                    </h2>
+                    <p class="font-serif italic text-xl text-outline mt-1">
+                        "Tamper-evident operation record — ENS Category Alta"
+                    </p>
+                </div>
+                <button
+                    on:click=on_export
+                    class="flex items-center gap-2 px-4 py-2 bg-primary text-white text-[11px] font-bold uppercase tracking-widest rounded-sm hover:bg-primary/90 transition-colors"
+                >
+                    <span class="material-symbols-outlined text-[16px]">"download"</span>
+                    "Export JSON"
+                </button>
             </header>
 
-            // Placeholder — full implementation in Phase 8
-            <div class="bg-white rounded-xl p-16 text-center border border-slate-200/50 shadow-sm">
-                <span class="material-symbols-outlined text-[48px] text-primary/20 mb-6 block">
-                    "history_edu"
-                </span>
-                <h3 class="font-sans font-black text-xl text-primary mb-2">
-                    "Audit Engine — Phase 8"
-                </h3>
-                <p class="font-serif italic text-on-surf-var max-w-md mx-auto">
-                    "The tamper-evident audit log will record every transformation, analysis,
-                    and export operation with SHA-256 hash chaining. Scheduled for Phase 8
-                    (ENS Category Alta compliance)."
-                </p>
-                <div class="mt-8 flex justify-center gap-4">
-                    <div class="px-4 py-2 bg-surf-low rounded-sm text-[10px] font-bold uppercase tracking-widest text-outline">
-                        "TRA-001 ✓ Designed"
+            // ── Table / Empty state ───────────────────────────────────────────
+            {move || match rows.get() {
+                None => view! {
+                    <div class="text-center py-16 text-outline font-serif italic">
+                        "Cargando…"
                     </div>
-                    <div class="px-4 py-2 bg-surf-low rounded-sm text-[10px] font-bold uppercase tracking-widest text-outline">
-                        "SEC-005 ✓ Designed"
+                }.into_any(),
+
+                Some(list) if list.is_empty() => view! {
+                    <div class="text-center py-16 font-serif italic text-on-surf-var">
+                        "No hay eventos registrados aún."
                     </div>
-                    <div class="px-4 py-2 bg-surf-low rounded-sm text-[10px] font-bold uppercase tracking-widest text-outline">
-                        "TRA-003 ✓ Designed"
+                }.into_any(),
+
+                Some(list) => view! {
+                    <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200/40">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-surf-low">
+                                    <th class="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-outline w-56">
+                                        "Timestamp"
+                                    </th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-outline w-32">
+                                        "Type"
+                                    </th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-outline">
+                                        "Detail"
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {list.into_iter().map(|row| {
+                                    let badge_class = match row.event_type.as_str() {
+                                        "transform" => "px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase bg-blue-50 text-blue-700",
+                                        "chat"      => "px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase bg-green-50 text-green-700",
+                                        "purge"     => "px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase bg-red-50 text-red-700",
+                                        _           => "px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase bg-slate-50 text-slate-600",
+                                    };
+                                    let detail = if row.payload.len() > 150 {
+                                        format!("{}…", &row.payload[..150])
+                                    } else {
+                                        row.payload.clone()
+                                    };
+                                    view! {
+                                        <tr class="border-b border-slate-100 hover:bg-surf-low/50 transition-colors">
+                                            <td class="px-4 py-3 text-outline font-mono text-[11px]">
+                                                {row.ts}
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <span class={badge_class}>{row.event_type}</span>
+                                            </td>
+                                            <td class="px-4 py-3 text-on-surf-var">
+                                                {detail}
+                                            </td>
+                                        </tr>
+                                    }
+                                }).collect_view()}
+                            </tbody>
+                        </table>
                     </div>
-                </div>
-            </div>
+                }.into_any(),
+            }}
         </div>
     }
 }

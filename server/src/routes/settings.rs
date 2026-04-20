@@ -15,17 +15,25 @@ use crate::AppState;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Settings {
-    pub llm_endpoint: String,
-    pub llm_model:    String,
-    pub api_key:      String,
+    pub llm_endpoint:    String,
+    pub llm_model:       String,
+    pub api_key:         String,
+    /// true = ya se preguntó si quería autoarranque (no volver a mostrar modal)
+    #[serde(default)]
+    pub autostart_asked: bool,
+    /// Hash argon2 del PIN de salida del modo kiosk (None = sin PIN configurado)
+    #[serde(default)]
+    pub kiosk_pin_hash: Option<String>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            llm_endpoint: "http://localhost:11434".into(),
-            llm_model:    String::new(),
-            api_key:      String::new(),
+            llm_endpoint:    "http://localhost:11434".into(),
+            llm_model:       String::new(),
+            api_key:         String::new(),
+            autostart_asked: false,
+            kiosk_pin_hash:  None,
         }
     }
 }

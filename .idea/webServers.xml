@@ -3,7 +3,7 @@
   <component name="WebServers">
     <option name="servers">
       <webServer id="9f89c2f6-5f6d-45f0-b692-6f6d40ab4b10" name="local_ai_assistant">
-        <fileTransfer rootFolder="./home/aistudio/local_ai_assistant" accessType="SFTP" host="192.168.1.147" port="22" sshConfigId="e6083cf8-cee2-4d45-9cf8-3bbad83e1423" sshConfig="aistudio@192.168.1.147:22 password">
+        <fileTransfer rootFolder="/home/aistudio/LocalAssistant" accessType="SFTP" host="192.168.1.99" port="22" sshConfigId="e6083cf8-cee2-4d45-9cf8-3bbad83e1423" sshConfig="aistudio@192.168.1.99:22 agent" authAgent="true">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>

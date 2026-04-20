@@ -15,6 +15,14 @@ use tracing::{error, info};
 
 use crate::AppState;
 
+// ─── System prompt ────────────────────────────────────────────────────────────
+
+const SYSTEM_PROMPT: &str = "\
+You are a helpful assistant. \
+Never use emojis, icons, or decorative symbols in your responses. \
+Use plain text only. \
+Be concise and direct.";
+
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -63,18 +71,22 @@ async fn chat_stream(
         .unwrap_or_else(|| "llama3".into());
     let api_key = snapshot.api_key.clone();
 
+    let db = state.db.clone();
+
+    // Extraer contexto para el audit log antes de mover req
+    let doc_name: String = req.messages.iter()
+        .find(|m| m["role"].as_str() == Some("system"))
+        .and_then(|m| m["content"].as_str())
+        .map(|s| s.chars().take(60).collect())
+        .unwrap_or_else(|| "unknown".to_string());
+    let snippet: String = req.messages.iter().rev()
+        .find(|m| m["role"].as_str() == Some("user"))
+        .and_then(|m| m["content"].as_str())
+        .map(|s| s.chars().take(100).collect())
+        .unwrap_or_default();
+
     tokio::spawn(async move {
         let mut messages = req.messages.clone();
-        // Añade /no_think al último mensaje de usuario para desactivar
-        // el chain-of-thought interno de Qwen 3 (<think>…</think>)
-        if let Some(last) = messages.last_mut() {
-            if last["role"].as_str() == Some("user") {
-                if let Some(content) = last["content"].as_str() {
-                    let new_content = format!("{content}\n\n/no_think");
-                    *last = serde_json::json!({"role": "user", "content": new_content});
-                }
-            }
-        }
         let tools = req.tools.clone().unwrap_or_default();
 
         // Tool loop — máx 5 rondas (igual que serve.py)
@@ -160,6 +172,15 @@ async fn chat_stream(
             }
         }
 
+        // Registrar en audit log
+        let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let payload = serde_json::json!({
+            "doc_name": doc_name,
+            "snippet":  snippet,
+            "ts":       ts,
+        }).to_string();
+        let _ = db.log_event("chat", &payload);
+
         let _ = tx.send("event: done\ndata: {}\n\n".into()).await;
     });
 
@@ -200,9 +221,21 @@ async fn llm_stream_round(
 ) -> anyhow::Result<RoundResult> {
     let client = reqwest::Client::new();
 
+    // Inyectar system prompt si el cliente no mandó uno ya
+    let messages_with_system: Vec<Value> = if messages.iter().any(|m| m["role"] == "system") {
+        messages.to_vec()
+    } else {
+        let mut v = vec![serde_json::json!({
+            "role": "system",
+            "content": SYSTEM_PROMPT
+        })];
+        v.extend_from_slice(messages);
+        v
+    };
+
     let mut body = serde_json::json!({
         "model": model,
-        "messages": messages,
+        "messages": messages_with_system,
         "stream": true,
     });
     if !tools.is_empty() {
@@ -223,10 +256,17 @@ async fn llm_stream_round(
         anyhow::bail!("LLM {status}: {text}");
     }
 
-    let mut stream = resp.bytes_stream();
-    let mut buf = String::new();
+    let mut stream    = resp.bytes_stream();
+    let mut buf       = String::new();
     let mut tool_calls: Vec<ToolCall> = Vec::new();
-    let mut text_acc = String::new(); // acumula texto para detectar tool calls en formato texto
+    let mut text_acc  = String::new();
+    // Para vLLM/Qwen3: el razonamiento llega SIN <think> de apertura,
+    // solo con </think> al final antes de la respuesta real.
+    // Empezamos en modo "thinking" y salimos al ver </think>.
+    // Si el stream termina sin </think> (llama.cpp, modelos sin thinking),
+    // emitimos "promote_reasoning" para que el frontend mueva el contenido al chat.
+    let mut in_think      = true;
+    let mut has_think_end = false; // ¿vimos </think> en algún momento?
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
@@ -248,20 +288,31 @@ async fn llm_stream_round(
 
             let delta = &val["choices"][0]["delta"];
 
-            // Texto normal
+            // Contenido de texto: separar razonamiento de respuesta real
             if let Some(text) = delta["content"].as_str() {
                 if !text.is_empty() {
-                    text_acc.push_str(text);
-                    let _ = tx.send(format!(
-                        "event: token\ndata: {}\n\n",
-                        serde_json::to_string(&serde_json::json!({"text": text})).unwrap()
-                    )).await;
+                    for (is_think, segment) in split_on_think_end(text, &mut in_think) {
+                        if is_think {
+                            let _ = tx.send(format!(
+                                "event: reasoning\ndata: {}\n\n",
+                                serde_json::to_string(&serde_json::json!({"text": segment})).unwrap()
+                            )).await;
+                        } else {
+                            has_think_end = true;
+                            text_acc.push_str(&segment);
+                            let _ = tx.send(format!(
+                                "event: token\ndata: {}\n\n",
+                                serde_json::to_string(&serde_json::json!({"text": segment})).unwrap()
+                            )).await;
+                        }
+                    }
                 }
             }
 
-            // Reasoning (DeepSeek / QwQ)
+            // Reasoning nativo en campo separado (DeepSeek / QwQ)
             if let Some(text) = delta["reasoning_content"].as_str() {
                 if !text.is_empty() {
+                    has_think_end = true; // campo nativo = no hay </think> inline
                     let _ = tx.send(format!(
                         "event: reasoning\ndata: {}\n\n",
                         serde_json::to_string(&serde_json::json!({"text": text})).unwrap()
@@ -289,6 +340,12 @@ async fn llm_stream_round(
                 }
             }
         }
+    }
+
+    // Si nunca vimos </think> ni reasoning_content nativo: el modelo no usa thinking.
+    // El frontend acumuló todo en la reasoning_buf — pedirle que lo mueva al chat.
+    if !has_think_end {
+        let _ = tx.send("event: promote_reasoning\ndata: {}\n\n".to_string()).await;
     }
 
     // Formato nativo: si hay tool_calls válidos, usarlos
@@ -465,6 +522,42 @@ fn created_file_info(output: &str) -> Option<Value> {
         }
     }
     None
+}
+
+// ─── Parser de razonamiento en streaming ─────────────────────────────────────
+//
+// vLLM/Qwen3 emite el razonamiento SIN tag <think> de apertura:
+//   [razonamiento...]</think>\n[respuesta real]
+//
+// Empezamos con in_think=true y salimos al ver </think>.
+// Los modelos sin thinking (llama.cpp) nunca emiten </think>, así que
+// in_think permanece true y al final del stream se emite promote_reasoning.
+//
+// También soporta el formato estándar <think>...</think> (DeepSeek, etc.)
+// aunque en ese caso <think> aparece como texto de razonamiento (inocuo).
+
+fn split_on_think_end(text: &str, in_think: &mut bool) -> Vec<(bool, String)> {
+    if !*in_think {
+        return if text.is_empty() { vec![] } else { vec![(false, text.to_string())] };
+    }
+
+    // Buscamos </think> para salir del bloque de razonamiento
+    match text.find("</think>") {
+        Some(pos) => {
+            let mut out = Vec::new();
+            if pos > 0 {
+                out.push((true, text[..pos].to_string()));
+            }
+            *in_think = false;
+            // Saltar saltos de línea tras </think>
+            let after = text[pos + "</think>".len()..].trim_start_matches('\n');
+            if !after.is_empty() {
+                out.push((false, after.to_string()));
+            }
+            out
+        }
+        None => vec![(true, text.to_string())],
+    }
 }
 
 // ─── Helpers SSE ─────────────────────────────────────────────────────────────

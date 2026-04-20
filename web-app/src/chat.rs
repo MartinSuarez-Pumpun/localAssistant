@@ -13,6 +13,7 @@ pub enum Role { User, Assistant, Tool }
 pub struct Message {
     pub role:        Role,
     pub content:     String,
+    pub reasoning:   String,
     pub tool:        Option<String>,
     pub ok:          Option<bool>,
     pub attachments: Vec<AttachmentInfo>,  // para burbujas de usuario
@@ -21,13 +22,13 @@ pub struct Message {
 
 impl Message {
     fn user(content: String, attachments: Vec<AttachmentInfo>) -> Self {
-        Self { role: Role::User, content, tool: None, ok: None, attachments, file: None }
+        Self { role: Role::User, content, reasoning: String::new(), tool: None, ok: None, attachments, file: None }
     }
     fn assistant() -> Self {
-        Self { role: Role::Assistant, content: String::new(), tool: None, ok: None, attachments: vec![], file: None }
+        Self { role: Role::Assistant, content: String::new(), reasoning: String::new(), tool: None, ok: None, attachments: vec![], file: None }
     }
     fn tool_start(name: String) -> Self {
-        Self { role: Role::Tool, content: String::new(), tool: Some(name), ok: None, attachments: vec![], file: None }
+        Self { role: Role::Tool, content: String::new(), reasoning: String::new(), tool: Some(name), ok: None, attachments: vec![], file: None }
     }
 }
 
@@ -59,7 +60,6 @@ pub fn ChatPanel() -> impl IntoView {
     let (messages, set_messages)       = signal::<Vec<Message>>(vec![]);
     let (input, set_input)             = signal(String::new());
     let (streaming, set_streaming)     = signal(false);
-    let (reasoning_buf, set_reasoning) = signal(String::new());
     let (drag_over, set_drag_over)     = signal(false);
     let (attachments, set_attachments) = signal::<Vec<AttachmentInfo>>(vec![]);
 
@@ -83,7 +83,6 @@ pub fn ChatPanel() -> impl IntoView {
             set_messages.update(|m| m.push(Message::user(text.clone(), atts)));
             set_input.set(String::new());
             set_streaming.set(true);
-            set_reasoning.set(String::new());
             set_messages.update(|m| m.push(Message::assistant()));
 
             let history: Vec<serde_json::Value> = messages.get().iter().map(|m| {
@@ -102,7 +101,7 @@ pub fn ChatPanel() -> impl IntoView {
                 "tools": *TOOLS
             })).unwrap();
 
-            spawn_sse(payload, set_messages, set_streaming, set_reasoning);
+            spawn_sse(payload, set_messages, set_streaming);
         }
     };
 
@@ -185,15 +184,6 @@ pub fn ChatPanel() -> impl IntoView {
                     }
                 }}
 
-                {move || {
-                    let r = reasoning_buf.get();
-                    (!r.is_empty()).then(|| view! {
-                        <div class="text-xs text-on-surf-var italic bg-surf-low rounded-lg px-3 py-2 border-l-2 border-outline-var max-w-2xl">
-                            <span class="font-semibold not-italic mr-1">"🧠"</span>
-                            {r}
-                        </div>
-                    })
-                }}
             </div>
 
             // ── Input ─────────────────────────────────────────────────────────
@@ -203,12 +193,11 @@ pub fn ChatPanel() -> impl IntoView {
                     let atts = attachments.get();
                     (!atts.is_empty()).then(|| {
                         let chips = atts.into_iter().enumerate().map(|(i, a)| {
-                            let icon = kind_icon(&a.kind).to_string();
                             let name = a.name.clone();
                             view! {
                                 <div class="flex items-center gap-1.5 bg-surf-high rounded-full \
                                             px-3 py-1 text-xs text-on-surf border border-outline-var/40">
-                                    <span class="material-symbols-outlined text-[14px] text-primary">{icon}</span>
+                                    <span class="material-symbols-outlined text-[14px] text-primary">{kind_icon(&a.kind)}</span>
                                     <span class="max-w-[120px] truncate">{name}</span>
                                     <button
                                         class="material-symbols-outlined text-[14px] text-on-surf-var hover:text-on-surf ml-0.5"
@@ -324,7 +313,6 @@ fn MsgBubble(msg: Message) -> impl IntoView {
                     </div>
                     // Card de archivo generado
                     {file.map(|f| {
-                        let icon = kind_icon(&f.kind).to_string();
                         let display_name  = f.name.clone();
                         let dl_path       = f.path.clone();
                         let dl_name       = f.name.clone();
@@ -335,7 +323,7 @@ fn MsgBubble(msg: Message) -> impl IntoView {
                                        transition-colors w-fit max-w-xs shadow-sm cursor-pointer"
                                 on:click=move |_| blob_download(&dl_path, &dl_name)
                             >
-                                <span class="material-symbols-outlined text-[20px]">{icon}</span>
+                                <span class="material-symbols-outlined text-[20px]">{kind_icon(&f.kind)}</span>
                                 <div class="flex flex-col min-w-0 text-left">
                                     <span class="font-medium truncate">{display_name}</span>
                                     <span class="text-xs text-on-surf-var">"Haz clic para descargar"</span>
@@ -356,12 +344,11 @@ fn MsgBubble(msg: Message) -> impl IntoView {
                         // Chips de archivos adjuntos (si los hay)
                         {(!attachments.is_empty()).then(|| {
                             let chips = attachments.iter().map(|a| {
-                                let icon = kind_icon(&a.kind).to_string();
                                 let name = a.name.clone();
                                 view! {
                                     <div class="flex items-center gap-1.5 bg-primary/20 rounded-full \
                                                 px-3 py-1 text-xs text-primary border border-primary/20">
-                                        <span class="material-symbols-outlined text-[12px]">{icon}</span>
+                                        <span class="material-symbols-outlined text-[12px]">{kind_icon(&a.kind)}</span>
                                         <span class="max-w-[140px] truncate">{name}</span>
                                     </div>
                                 }
@@ -381,26 +368,41 @@ fn MsgBubble(msg: Message) -> impl IntoView {
             }.into_any()
         }
 
-        Role::Assistant => view! {
-            <div class="flex justify-start gap-3 max-w-[85%]">
-                <div class="w-7 h-7 rounded-full bg-surf-high flex items-center justify-center shrink-0 mt-0.5">
-                    <span class="material-symbols-outlined text-[16px] text-primary">"smart_toy"</span>
+        Role::Assistant => {
+            let reasoning = msg.reasoning.clone();
+            let has_reasoning = !reasoning.is_empty();
+            view! {
+                <div class="flex justify-start gap-3 max-w-[85%]">
+                    <div class="w-7 h-7 rounded-full bg-surf-high flex items-center justify-center shrink-0 mt-0.5">
+                        <span class="material-symbols-outlined text-[16px] text-primary">"smart_toy"</span>
+                    </div>
+                    <div class="bg-white border border-outline-var/30 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-on-surf leading-relaxed whitespace-pre-wrap shadow-sm flex flex-col">
+                        {has_reasoning.then(|| view! {
+                            <details class="mb-2 text-xs text-on-surf-var">
+                                <summary class="cursor-pointer select-none hover:text-on-surf flex items-center gap-1.5">
+                                    <span class="material-symbols-outlined text-[14px]">"psychology"</span>
+                                    <span>"Razonamiento"</span>
+                                </summary>
+                                <div class="mt-1.5 pl-4 border-l-2 border-outline-var whitespace-pre-wrap italic">
+                                    {reasoning}
+                                </div>
+                            </details>
+                        })}
+                        {if msg.content.is_empty() {
+                            view! {
+                                <span class="flex gap-1 items-center text-on-surf-var">
+                                    <span class="w-1.5 h-1.5 bg-on-surf-var rounded-full animate-bounce" style="animation-delay:0ms"/>
+                                    <span class="w-1.5 h-1.5 bg-on-surf-var rounded-full animate-bounce" style="animation-delay:150ms"/>
+                                    <span class="w-1.5 h-1.5 bg-on-surf-var rounded-full animate-bounce" style="animation-delay:300ms"/>
+                                </span>
+                            }.into_any()
+                        } else {
+                            view! { <span>{msg.content.clone()}</span> }.into_any()
+                        }}
+                    </div>
                 </div>
-                <div class="bg-white border border-outline-var/30 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-on-surf leading-relaxed whitespace-pre-wrap shadow-sm">
-                    {if msg.content.is_empty() {
-                        view! {
-                            <span class="flex gap-1 items-center text-on-surf-var">
-                                <span class="w-1.5 h-1.5 bg-on-surf-var rounded-full animate-bounce" style="animation-delay:0ms"/>
-                                <span class="w-1.5 h-1.5 bg-on-surf-var rounded-full animate-bounce" style="animation-delay:150ms"/>
-                                <span class="w-1.5 h-1.5 bg-on-surf-var rounded-full animate-bounce" style="animation-delay:300ms"/>
-                            </span>
-                        }.into_any()
-                    } else {
-                        view! { <span>{msg.content.clone()}</span> }.into_any()
-                    }}
-                </div>
-            </div>
-        }.into_any(),
+            }.into_any()
+        },
     }
 }
 
@@ -620,7 +622,6 @@ fn spawn_sse(
     payload:        String,
     set_messages:   WriteSignal<Vec<Message>>,
     set_streaming:  WriteSignal<bool>,
-    set_reasoning:  WriteSignal<String>,
 ) {
     wasm_bindgen_futures::spawn_local(async move {
         let window = web_sys::window().unwrap();
@@ -682,7 +683,7 @@ fn spawn_sse(
                     "reasoning" => {
                         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
                             if let Some(text) = v["text"].as_str() {
-                                set_reasoning.update(|r| r.push_str(text));
+                                append_reasoning_to_last(&set_messages, text);
                             }
                         }
                     }
@@ -708,9 +709,35 @@ fn spawn_sse(
                             set_messages.update(|m| m.push(Message::assistant()));
                         }
                     }
+                    // El modelo no usa thinking: lo que vino como reasoning era la respuesta real.
+                    "promote_reasoning" => {
+                        set_messages.update(|msgs| {
+                            if let Some(last) = msgs.iter_mut().rev().find(|m| m.role == Role::Assistant) {
+                                let r = std::mem::take(&mut last.reasoning);
+                                last.content.push_str(&r);
+                            }
+                        });
+                    }
                     "done" | "error" => {
+                        set_messages.update(|msgs| {
+                            // Safety net: si el último assistant tiene content vacío pero
+                            // reasoning no vacío, promover reasoning → content. Esto cubre
+                            // el caso en que el backend no emitió promote_reasoning (stream
+                            // abrupto, error) pero el modelo sí acumuló texto como razonamiento.
+                            if let Some(last) = msgs.iter_mut().rev().find(|m| m.role == Role::Assistant) {
+                                if last.content.is_empty() && !last.reasoning.is_empty() {
+                                    let r = std::mem::take(&mut last.reasoning);
+                                    last.content.push_str(&r);
+                                }
+                            }
+                            while matches!(
+                                msgs.last(),
+                                Some(m) if m.role == Role::Assistant && m.content.is_empty() && m.reasoning.is_empty()
+                            ) {
+                                msgs.pop();
+                            }
+                        });
                         set_streaming.set(false);
-                        set_reasoning.set(String::new());
                         break;
                     }
                     _ => {}
@@ -719,7 +746,6 @@ fn spawn_sse(
         }
 
         set_streaming.set(false);
-        set_reasoning.set(String::new());
     });
 }
 
@@ -728,6 +754,15 @@ fn append_to_last(set_messages: &WriteSignal<Vec<Message>>, text: &str) {
     set_messages.update(|msgs| {
         if let Some(last) = msgs.iter_mut().rev().find(|m| m.role == Role::Assistant) {
             last.content.push_str(&t);
+        }
+    });
+}
+
+fn append_reasoning_to_last(set_messages: &WriteSignal<Vec<Message>>, text: &str) {
+    let t = text.to_string();
+    set_messages.update(|msgs| {
+        if let Some(last) = msgs.iter_mut().rev().find(|m| m.role == Role::Assistant) {
+            last.reasoning.push_str(&t);
         }
     });
 }

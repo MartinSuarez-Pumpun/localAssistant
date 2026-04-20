@@ -1,3 +1,5 @@
+pub mod autostart;
+pub mod kiosk;
 pub mod browse;
 pub mod chat;
 pub mod download;
@@ -6,8 +8,12 @@ pub mod extract;
 pub mod history;
 pub mod plugin_db;
 pub mod plugins;
+pub mod readability;
 pub mod render;
+pub mod render_docx;
+pub mod render_pdf;
 pub mod settings;
 pub mod static_files;
 pub mod transform;
 pub mod upload;
+pub mod workspace;

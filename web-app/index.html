@@ -5,8 +5,8 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>LocalAiAssistant</title>
 
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
-          rel="stylesheet"/>
+    <link rel="stylesheet" href="/static/fonts/material-symbols.css"/>
+    <link data-trunk rel="copy-dir" href="static/"/>
 
     <!-- Tailwind CDN (dev; en release se reemplaza por build) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -49,16 +49,36 @@
             background: #f9fafb;
         }
 
-        .material-symbols-outlined {
-            font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 24;
-            vertical-align: middle;
-            line-height: 1;
-        }
-    </style>
+</style>
 </head>
 <body>
+<!-- Indicador de carga visible hasta que el WASM arranque -->
+<div id="_loading" style="
+    position:fixed;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    background:#f9fafb;z-index:9999;
+">
+    <div style="
+        width:36px;height:36px;border-radius:50%;
+        border:3px solid #e5e7eb;border-top-color:#1a56db;
+        animation:_spin 0.8s linear infinite;
+    "></div>
+    <p style="margin-top:16px;font-family:sans-serif;font-size:14px;color:#6b7280;">
+        Cargando…
+    </p>
+</div>
+<style>
+    @keyframes _spin { to { transform: rotate(360deg); } }
+</style>
 <!-- Leptos monta aquí -->
 <div id="app"></div>
 <link data-trunk data-wasm-opt="z" rel="rust"/>
+<script>
+    // Ocultar el loader cuando Leptos termine de montar
+    document.addEventListener('TrunkApplicationStarted', function() {
+        var el = document.getElementById('_loading');
+        if (el) el.style.display = 'none';
+    });
+</script>
 </body>
 </html>

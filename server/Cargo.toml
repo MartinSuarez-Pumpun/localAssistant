@@ -39,6 +39,7 @@ anyhow = "1"
 thiserror = "1"
 clap = { version = "4", features = ["derive"] }
 dirs = "5"
+ureq = "2"
 walkdir = "2"
 pdf-extract = "0.7"
 docx-rs = "0.4"
@@ -47,5 +48,8 @@ printpdf = "0.7"
 rusqlite = { version = "0.31", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 # Ventana nativa con WebView embebido (sin browser externo)
-wry = "0.44"
-tao = "0.30"
+wry = "0.47"
+tao = "0.31"
+argon2 = { version = "0.5", features = ["std"] }
+sha2 = "0.10"
+hex = "0.4"

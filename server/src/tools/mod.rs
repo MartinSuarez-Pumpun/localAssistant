@@ -1,4 +1,5 @@
 pub mod files;
+pub mod readability;
 mod shell;
 
 use std::sync::Arc;

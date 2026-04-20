@@ -11,15 +11,17 @@ built with Rust/Leptos/WASM, running inside a native macOS app (LocalAiAssistant
 4. Implement the task completely — read the relevant files first, then write the code.
 5. Run the build check specified in the task's Notes for Agents section.
 6. If build passes: change status to `[ DONE ]`, add a note, save TASKS.md.
-7. If build fails: fix the errors. If you cannot fix them after 2 attempts, mark `[ BLOCKED ]` with the error in the Note field, then try the next PENDING task.
+7. If build fails: fix the errors. If you cannot fix them after 2 attempts, mark `[ BLOCKED ]` with the error in the
+   Note field, then try the next PENDING task.
 8. If you have time and credits, repeat from step 2 with the next task.
 
 ## Project context
 
 - **Backend**: Rust Axum server at `server/src/`
 - **Frontend**: Leptos WASM plugin at `plugins/oliv4600-pack/src/lib.rs` (2500+ lines, single file)
-- **Design system**: `First Objective/olivetti_modernist/DESIGN.md` — Olivetti modernist aesthetic, navy primary (#002542), no external APIs, 100% local
-- **LLM**: Calls forwarded to Ollama at `settings.llm_endpoint` (default: `http://localhost:11434`)
+- **Design system**: `First Objective/olivetti_modernist/DESIGN.md` — Olivetti modernist aesthetic, navy primary (
+  #002542), no external APIs, 100% local
+- **LLM**: Calls forwarded to Ollama/llama.cpp at `settings.llm_endpoint` (default: `http://localhost:11434`)
 - **State dir**: `~/.local-ai/`
 
 ## Critical rules

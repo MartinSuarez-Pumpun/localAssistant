@@ -1,12 +1,22 @@
 use leptos::prelude::*;
 use gloo_net::http::Request;
+use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
 use crate::chat::ChatPanel;
 use crate::config_panel::ConfigPanel;
 use crate::file_browser::{FileBrowser, FileBrowserCtx};
+use crate::kiosk_exit::KioskExit;
 use crate::plugins::PluginInfo;
+
+// ─── Tipos autostart ─────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct AutostartStatus {
+    enabled: bool,
+    asked:   bool,
+}
 
 // ─── Vista activa ─────────────────────────────────────────────────────────────
 
@@ -37,6 +47,7 @@ pub fn Shell() -> impl IntoView {
     let (active, set_active)         = signal(ActiveView::Chat);
     let (plugins, set_plugins)       = signal(PluginsState::Loading);
     let (sidebar_bg, set_sidebar_bg) = signal(String::new()); // vacío = color base
+    let (show_autostart, set_show_autostart) = signal(false);
 
     // ── Contexto global del explorador de archivos ────────────────────────────
     let fb_ctx = FileBrowserCtx::new();
@@ -107,6 +118,17 @@ pub fn Shell() -> impl IntoView {
             resp.json::<Vec<PluginInfo>>().await.ok()
         }.await;
         set_plugins.set(PluginsState::Ready(result.unwrap_or_default()));
+    });
+
+    // ── Comprobar autostart (mostrar modal solo si no se preguntó antes) ──────
+    wasm_bindgen_futures::spawn_local(async move {
+        if let Ok(resp) = Request::get("/api/autostart").send().await {
+            if let Ok(status) = resp.json::<AutostartStatus>().await {
+                if !status.enabled && !status.asked {
+                    set_show_autostart.set(true);
+                }
+            }
+        }
     });
 
     view! {
@@ -248,6 +270,68 @@ pub fn Shell() -> impl IntoView {
 
         // ── Modal explorador de archivos (global, sobre todo) ─────────────────
         <FileBrowser ctx=fb_ctx/>
+
+        // ── Zona de escape del modo kiosk (invisible, esquina inferior-izquierda)
+        <KioskExit/>
+
+        // ── Modal autostart ───────────────────────────────────────────────────
+        {move || show_autostart.get().then(|| view! {
+            <div class="fixed inset-0 z-50 flex items-center justify-center \
+                        bg-black/60 backdrop-blur-sm">
+                <div class="bg-surf-cont rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 \
+                            flex flex-col gap-5 border border-white/10">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-outlined text-primary text-[28px]">
+                            "rocket_launch"
+                        </span>
+                        <h2 class="text-on-surf font-semibold text-lg leading-tight">
+                            "Abrir al iniciar el sistema"
+                        </h2>
+                    </div>
+                    <p class="text-on-surf-var text-sm leading-relaxed">
+                        "¿Quieres que LocalAI Assistant se abra automáticamente \
+                         cada vez que enciendas el equipo?"
+                    </p>
+                    <div class="flex gap-3 justify-end mt-1">
+                        <button
+                            on:click=move |_| {
+                                set_show_autostart.set(false);
+                                wasm_bindgen_futures::spawn_local(async move {
+                                    let _ = Request::post("/api/autostart")
+                                        .header("Content-Type", "application/json")
+                                        .body("{\"enabled\":false}")
+                                        .unwrap()
+                                        .send()
+                                        .await;
+                                });
+                            }
+                            class="px-4 py-2 rounded-lg text-sm text-on-surf-var \
+                                   hover:bg-white/8 transition-colors"
+                        >
+                            "Ahora no"
+                        </button>
+                        <button
+                            on:click=move |_| {
+                                set_show_autostart.set(false);
+                                wasm_bindgen_futures::spawn_local(async move {
+                                    let _ = Request::post("/api/autostart")
+                                        .header("Content-Type", "application/json")
+                                        .body("{\"enabled\":true}")
+                                        .unwrap()
+                                        .send()
+                                        .await;
+                                });
+                            }
+                            class="px-4 py-2 rounded-lg text-sm font-medium \
+                                   bg-primary text-white hover:bg-primary/90 \
+                                   transition-colors"
+                        >
+                            "Sí, configurar"
+                        </button>
+                    </div>
+                </div>
+            </div>
+        })}
     }
 }
 

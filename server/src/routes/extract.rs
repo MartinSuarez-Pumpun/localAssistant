@@ -9,6 +9,7 @@
 
 use axum::{Router, extract::State, routing::post, response::IntoResponse, http::StatusCode};
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
 
 use crate::AppState;
 
@@ -22,6 +23,7 @@ pub struct ExtractResponse {
     pub text:       String,
     pub word_count: usize,
     pub filename:   String,
+    pub doc_hash:   String,
 }
 
 pub fn router() -> Router<AppState> {
@@ -74,6 +76,7 @@ async fn extract_text(
     };
 
     let word_count = text.split_whitespace().count();
+    let doc_hash = hex::encode(Sha256::digest(text.as_bytes()));
 
-    axum::Json(ExtractResponse { text, word_count, filename }).into_response()
+    axum::Json(ExtractResponse { text, word_count, filename, doc_hash }).into_response()
 }

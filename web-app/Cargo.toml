@@ -18,6 +18,7 @@ web-sys = { version = "0.3", features = [
     "Headers", "ReadableStream", "ReadableStreamDefaultReader",
     "console", "ScrollIntoViewOptions", "ScrollBehavior",
     "DragEvent", "DataTransfer", "FileList", "File", "Blob", "FormData",
+    "HtmlInputElement", "KeyboardEvent",
 ] }
 js-sys = "0.3"
 wasm-bindgen-futures = "0.4"
