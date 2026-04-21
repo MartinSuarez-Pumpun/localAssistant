@@ -2,6 +2,9 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 
+mod file_browser;
+use file_browser::{FileBrowser, FileBrowserCtx};
+
 // ─── View Enum ────────────────────────────────────────────────────────────────
 // Each variant maps to a top-level workspace within the OLIV4600 interface.
 // The active view is the single source of truth for which screen is rendered.
@@ -141,19 +144,19 @@ async fn plugin_query(
 fn action_badge(action: &str) -> (&'static str, &'static str) {
     match action {
         "executive_summary" | "detailed_summary" =>
-            ("bg-[#003b65] text-[#66a6ea]",   "Summary"),
+            ("bg-[#003b65] text-[#66a6ea]",   "Resumen"),
         "press_release"     =>
-            ("bg-[#622700] text-[#fa813a]",   "Press Release"),
+            ("bg-[#622700] text-[#fa813a]",   "Nota de Prensa"),
         "linkedin_post"     =>
             ("bg-[#003b65] text-[#66a6ea]",   "LinkedIn"),
         "academic_abstract" =>
             ("bg-surf-highest text-on-surf-var", "Abstract"),
         "blog_article"      =>
-            ("bg-surf-highest text-on-surf-var", "Blog Article"),
+            ("bg-surf-highest text-on-surf-var", "Artículo de Blog"),
         "briefing_note"     =>
             ("bg-surf-highest text-on-surf-var", "Briefing"),
         _                   =>
-            ("bg-surf-highest text-on-surf-var", "Transform"),
+            ("bg-surf-highest text-on-surf-var", "Transformación"),
     }
 }
 
@@ -371,6 +374,83 @@ fn upload_and_load(file: web_sys::File, ctx: DocumentCtx, set_active_view: Write
     });
 }
 
+// ─── Helper: cargar un archivo YA existente en el servidor por ruta ──────────
+// Se usa cuando el usuario selecciona un archivo a través del modal custom
+// (`FileBrowser`), que devuelve una ruta absoluta a un archivo que ya vive
+// en el filesystem del host — no hay que hacer upload, basta con extraer.
+
+fn load_from_path(path: String, ctx: DocumentCtx, set_active_view: WriteSignal<View>) {
+    spawn_local(async move {
+        ctx.processing.set(true);
+        ctx.upload_error.set(None);
+
+        macro_rules! bail {
+            ($msg:expr) => {{
+                ctx.upload_error.set(Some($msg.to_string()));
+                ctx.processing.set(false);
+                return;
+            }};
+        }
+
+        let extract_body = serde_json::json!({"path": path}).to_string();
+        let headers = web_sys::Headers::new().unwrap();
+        headers.set("Content-Type", "application/json").unwrap();
+        let opts = web_sys::RequestInit::new();
+        opts.set_method("POST");
+        opts.set_body(&wasm_bindgen::JsValue::from_str(&extract_body));
+        opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+        let req = match web_sys::Request::new_with_str_and_init("/api/extract", &opts) {
+            Ok(r) => r,
+            Err(_) => bail!("Error al crear petición de extracción"),
+        };
+        let window = web_sys::window().unwrap();
+        let resp: web_sys::Response = match JsFuture::from(window.fetch_with_request(&req)).await {
+            Ok(r)  => r.unchecked_into(),
+            Err(e) => bail!(format!("Error de red al extraer texto: {:?}", e)),
+        };
+        if !resp.ok() {
+            bail!(format!("El servidor no pudo extraer el texto (HTTP {})", resp.status()));
+        }
+        let json_str = match JsFuture::from(resp.text().unwrap()).await {
+            Ok(t) => t.as_string().unwrap_or_default(),
+            Err(_) => bail!("Error leyendo respuesta de extracción"),
+        };
+        if let Ok(ex) = serde_json::from_str::<serde_json::Value>(&json_str) {
+            let text     = ex["text"].as_str().unwrap_or("").to_string();
+            let filename = ex["filename"].as_str().unwrap_or("").to_string();
+            let doc_hash = ex["doc_hash"].as_str().unwrap_or("").to_string();
+            let wc       = ex["word_count"].as_u64().unwrap_or(0) as u32;
+
+            ctx.text.set(text);
+            ctx.filename.set(filename.clone());
+            ctx.doc_hash.set(doc_hash.clone());
+            ctx.word_count.set(wc);
+
+            if !doc_hash.is_empty() {
+                plugin_query(
+                    "INSERT INTO oliv_projects \
+                     (doc_hash, doc_name, original_path, word_count) \
+                     VALUES (?1,?2,?3,?4) \
+                     ON CONFLICT(doc_hash) DO UPDATE SET \
+                       doc_name = excluded.doc_name, \
+                       word_count = excluded.word_count, \
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')",
+                    vec![
+                        serde_json::json!(doc_hash),
+                        serde_json::json!(filename),
+                        serde_json::json!(path),
+                        serde_json::json!(wc),
+                    ],
+                ).await;
+                ctx.refresh_projects.update(|n| *n += 1);
+            }
+
+            set_active_view.set(View::Editor);
+        }
+        ctx.processing.set(false);
+    });
+}
+
 // ─── Helper: llamada al motor de transformación (SRS §8.3) ───────────────────
 // POST /api/transform con SSE streaming.
 // Los tokens van acumulándose en ctx.output en tiempo real.
@@ -530,7 +610,17 @@ fn run_chat(ctx: DocumentCtx, messages: RwSignal<Vec<(String, String)>>, user_ms
 async fn read_sse_stream<F, D, E>(resp: web_sys::Response, on_token: F, on_done: D, on_error: E)
 where F: Fn(String), D: Fn(), E: Fn(String)
 {
-    fn parse_sse_buf<F, E>(buf: &mut String, on_token: &F, on_error: &E)
+    // Buffer de razonamiento: se acumula mientras el modelo piensa y sólo se
+    // vuelca al chat si el backend emite `promote_reasoning` (T20/T24).
+    let reasoning_buf: std::rc::Rc<std::cell::RefCell<String>> =
+        std::rc::Rc::new(std::cell::RefCell::new(String::new()));
+
+    fn parse_sse_buf<F, E>(
+        buf: &mut String,
+        on_token: &F,
+        on_error: &E,
+        reasoning_buf: &std::rc::Rc<std::cell::RefCell<String>>,
+    )
     where F: Fn(String), E: Fn(String)
     {
         while let Some(idx) = buf.find("\n\n") {
@@ -548,11 +638,31 @@ where F: Fn(String), D: Fn(), E: Fn(String)
                 }
             }
             if let Some(ev) = data_json {
-                if event_type == "error" {
-                    let m = ev["message"].as_str().unwrap_or("Error desconocido").to_string();
-                    on_error(m);
-                } else if let Some(t) = ev["text"].as_str() {
-                    if !t.is_empty() { on_token(t.to_string()); }
+                // T24: clasificar por `event:` SSE. Razonamiento se guarda
+                // en buffer local, no se emite al panel salvo que el backend
+                // pida promoverlo (caso thinking-sin-cierre).
+                match event_type.as_str() {
+                    "error" => {
+                        let m = ev["message"].as_str().unwrap_or("Error desconocido").to_string();
+                        on_error(m);
+                    }
+                    "token" => {
+                        if let Some(t) = ev["text"].as_str() {
+                            if !t.is_empty() { on_token(t.to_string()); }
+                        }
+                    }
+                    "reasoning" => {
+                        if let Some(t) = ev["text"].as_str() {
+                            if !t.is_empty() {
+                                reasoning_buf.borrow_mut().push_str(t);
+                            }
+                        }
+                    }
+                    "promote_reasoning" => {
+                        let r = std::mem::take(&mut *reasoning_buf.borrow_mut());
+                        if !r.is_empty() { on_token(r); }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -571,12 +681,12 @@ where F: Fn(String), D: Fn(), E: Fn(String)
                     Ok(v) => v, Err(_) => break,
                 };
                 buf.push_str(&String::from_utf8_lossy(&js_sys::Uint8Array::new(&value).to_vec()));
-                parse_sse_buf(&mut buf, &on_token, &on_error);
+                parse_sse_buf(&mut buf, &on_token, &on_error, &reasoning_buf);
             }
             // flush remaining
             if !buf.is_empty() {
                 buf.push_str("\n\n");
-                parse_sse_buf(&mut buf, &on_token, &on_error);
+                parse_sse_buf(&mut buf, &on_token, &on_error, &reasoning_buf);
             }
         }
         None => {
@@ -586,7 +696,7 @@ where F: Fn(String), D: Fn(), E: Fn(String)
                 if let Ok(js_text) = JsFuture::from(text_promise).await {
                     let mut buf = js_text.as_string().unwrap_or_default();
                     buf.push_str("\n\n");
-                    parse_sse_buf(&mut buf, &on_token, &on_error);
+                    parse_sse_buf(&mut buf, &on_token, &on_error, &reasoning_buf);
                 }
             }
         }
@@ -712,18 +822,222 @@ fn download_text(text: String, filename: &str, mime: &str) {
 // Finder. WKWebView no soporta blob-downloads, por eso nunca descargamos
 // binario al frontend: todo ocurre en el lado Rust.
 
-async fn fetch_render(
-    text:   String,
-    label:  String,
-    format: String,
-    _fname: String,           // reservado; el servidor decide el nombre final
-    toast:  RwSignal<Option<String>>,
+/// Le pide al servidor que abra en el file manager nativo la carpeta
+/// `~/.local-ai/projects/{doc_hash}/` (Finder en macOS, xdg-open en Linux).
+async fn reveal_project_folder(doc_hash: String) -> Result<(), ()> {
+    use wasm_bindgen::JsValue;
+    if doc_hash.is_empty() { return Err(()); }
+    let body = serde_json::json!({ "doc_hash": doc_hash }).to_string();
+    let headers = web_sys::Headers::new().unwrap();
+    headers.set("Content-Type", "application/json").unwrap();
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&JsValue::from_str(&body));
+    opts.set_headers(&JsValue::from(headers));
+    let req = web_sys::Request::new_with_str_and_init("/api/project/reveal", &opts)
+        .map_err(|_| ())?;
+    let win = web_sys::window().ok_or(())?;
+    JsFuture::from(win.fetch_with_request(&req)).await.map(|_| ()).map_err(|_| ())
+}
+
+/// Borra el proyecto: fila `oliv_projects`, caché `oliv_analysis_cache`
+/// y carpeta `~/.local-ai/projects/{doc_hash}/`. Best-effort.
+async fn delete_project(doc_hash: String) -> Result<(), String> {
+    use wasm_bindgen::JsValue;
+    if doc_hash.is_empty() { return Err("doc_hash vacío".into()); }
+
+    // 1. Borrar filas de las tablas del plugin. oliv_analysis_cache puede no
+    //    existir en todos los perfiles — ignoramos su error.
+    let _ = plugin_query(
+        "DELETE FROM oliv_analysis_cache WHERE doc_hash = ?1",
+        vec![serde_json::Value::String(doc_hash.clone())],
+    ).await;
+    let _ = plugin_query(
+        "DELETE FROM oliv_projects WHERE doc_hash = ?1",
+        vec![serde_json::Value::String(doc_hash.clone())],
+    ).await;
+
+    // 2. Borrar la carpeta en disco.
+    let body = serde_json::json!({ "doc_hash": doc_hash }).to_string();
+    let headers = web_sys::Headers::new().map_err(|_| "headers")?;
+    headers.set("Content-Type", "application/json").map_err(|_| "set-header")?;
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&JsValue::from_str(&body));
+    opts.set_headers(&JsValue::from(headers));
+    let req = web_sys::Request::new_with_str_and_init("/api/project/delete", &opts)
+        .map_err(|_| "request")?;
+    let win = web_sys::window().ok_or("window")?;
+    let resp_js = JsFuture::from(win.fetch_with_request(&req)).await
+        .map_err(|_| "fetch")?;
+    let resp: web_sys::Response = resp_js.unchecked_into();
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    Ok(())
+}
+
+/// Pide al servidor que escriba el archivo en `dest_dir/filename`. En kiosk
+/// sustituye a `fetch_render_download` porque el user no tiene acceso al
+/// diálogo nativo de "Guardar como".
+async fn fetch_save_as(
+    text:     String,
+    label:    String,
+    format:   String,
+    dest_dir: String,
+    filename: String,
+    toast:    RwSignal<Option<String>>,
 ) {
     use wasm_bindgen::JsValue;
     let body_json = serde_json::json!({
-        "text":   text,
-        "label":  label,
-        "format": format,
+        "text":     text,
+        "label":    label,
+        "format":   format,
+        "dest_dir": dest_dir,
+        "filename": filename,
+    }).to_string();
+
+    let headers = web_sys::Headers::new().unwrap();
+    headers.set("Content-Type", "application/json").unwrap();
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&JsValue::from_str(&body_json));
+    opts.set_headers(&JsValue::from(headers));
+
+    let req = match web_sys::Request::new_with_str_and_init("/api/export/save-as", &opts) {
+        Ok(r) => r,
+        Err(_) => { toast.set(Some("Error creando petición.".into())); return; }
+    };
+    let Some(win) = web_sys::window() else { return };
+
+    let msg = match JsFuture::from(win.fetch_with_request(&req)).await {
+        Err(_) => "Error de red al guardar.".to_string(),
+        Ok(rv) => {
+            let resp: web_sys::Response = rv.unchecked_into();
+            if !resp.ok() {
+                format!("Error del servidor ({}).", resp.status())
+            } else if let Ok(p) = resp.text() {
+                match JsFuture::from(p).await {
+                    Ok(t) => {
+                        let s = t.as_string().unwrap_or_default();
+                        let path = serde_json::from_str::<serde_json::Value>(&s)
+                            .ok()
+                            .and_then(|v| v["path"].as_str().map(str::to_string))
+                            .unwrap_or_default();
+                        if path.is_empty() { "✓ Guardado.".to_string() }
+                        else { format!("✓ Guardado en {path}") }
+                    }
+                    Err(_) => "✓ Guardado.".to_string(),
+                }
+            } else {
+                "✓ Guardado.".to_string()
+            }
+        }
+    };
+
+    toast.set(Some(msg));
+    gloo_timers::future::TimeoutFuture::new(5_000).await;
+    toast.set(None);
+}
+
+/// Genera DOCX/PDF y dispara la descarga nativa del WebView (diálogo
+/// "Guardar como" del sistema operativo). Si `doc_hash` no está vacío el
+/// servidor también deja una copia en `projects/{hash}/outputs/`.
+#[allow(dead_code)]
+async fn fetch_render_download(
+    text:     String,
+    label:    String,
+    format:   String,
+    filename: String,
+    doc_hash: String,
+    toast:    RwSignal<Option<String>>,
+) {
+    use wasm_bindgen::JsValue;
+    let body_json = serde_json::json!({
+        "text":     text,
+        "label":    label,
+        "format":   format,
+        "doc_hash": doc_hash,
+    }).to_string();
+
+    let headers = web_sys::Headers::new().unwrap();
+    headers.set("Content-Type", "application/json").unwrap();
+
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_body(&JsValue::from_str(&body_json));
+    opts.set_headers(&JsValue::from(headers));
+
+    let req = match web_sys::Request::new_with_str_and_init("/api/export/download", &opts) {
+        Ok(r) => r,
+        Err(_) => { toast.set(Some("Error creando petición.".into())); return; }
+    };
+    let Some(win) = web_sys::window() else { return };
+
+    let msg = match JsFuture::from(win.fetch_with_request(&req)).await {
+        Err(_) => "Error de red al generar.".to_string(),
+        Ok(rv) => {
+            let resp: web_sys::Response = rv.unchecked_into();
+            if !resp.ok() {
+                format!("Error del servidor ({}).", resp.status())
+            } else {
+                let blob_opt = match resp.blob() {
+                    Ok(p) => JsFuture::from(p).await.ok(),
+                    Err(_) => None,
+                };
+                match blob_opt {
+                    None => "No se pudo leer el archivo generado.".to_string(),
+                    Some(blob_js) => {
+                        let blob: web_sys::Blob = blob_js.unchecked_into();
+                        trigger_blob_download(&blob, &filename);
+                        format!("✓ Descarga iniciada: {filename}")
+                    }
+                }
+            }
+        }
+    };
+
+    toast.set(Some(msg));
+    gloo_timers::future::TimeoutFuture::new(4_000).await;
+    toast.set(None);
+}
+
+/// Crea un `<a href=blob: download=name>` temporal y hace click para disparar
+/// el diálogo de descarga del WebView. Funciona en Chromium, WebKitGTK y
+/// WKWebView sin depender de `showSaveFilePicker` (que sólo existe en
+/// Chromium).
+fn trigger_blob_download(blob: &web_sys::Blob, filename: &str) {
+    let Some(win) = web_sys::window() else { return };
+    let Some(doc) = win.document() else { return };
+    let Ok(url) = web_sys::Url::create_object_url_with_blob(blob) else { return };
+    if let Ok(el) = doc.create_element("a") {
+        let a: web_sys::HtmlAnchorElement = el.unchecked_into();
+        a.set_href(&url);
+        a.set_download(filename);
+        if let Some(body) = doc.body() {
+            let _ = body.append_child(&a);
+            a.click();
+            let _ = body.remove_child(&a);
+        }
+    }
+    // Dar al WebView un tick para leer el blob antes de revocar.
+    let _ = web_sys::Url::revoke_object_url(&url);
+}
+
+async fn fetch_render(
+    text:     String,
+    label:    String,
+    format:   String,
+    _fname:   String,           // reservado; el servidor decide el nombre final
+    doc_hash: String,           // si no-vacío, el server guarda copia en projects/{hash}/outputs/
+    toast:    RwSignal<Option<String>>,
+) {
+    use wasm_bindgen::JsValue;
+    let body_json = serde_json::json!({
+        "text":     text,
+        "label":    label,
+        "format":   format,
+        "doc_hash": doc_hash,
     }).to_string();
 
     let headers = web_sys::Headers::new().unwrap();
@@ -836,7 +1150,7 @@ fn App() -> impl IntoView {
         "#).await;
     });
 
-    let (active_nav, set_active_nav) = signal("Projects");
+    let (active_nav, set_active_nav) = signal("Proyectos");
     let (active_view, set_active_view) = signal(View::Dashboard);
     let (drag_over, set_drag_over)     = signal(false);
 
@@ -844,7 +1158,14 @@ fn App() -> impl IntoView {
     let doc_ctx = DocumentCtx::new();
     provide_context(doc_ctx);
 
+    // Contexto del explorador de archivos (modal custom) — sustituye al
+    // <input type="file"> nativo, que en modo kiosk deja al usuario fuera
+    // del sistema de archivos.
+    let fb_ctx = FileBrowserCtx::new();
+    provide_context(fb_ctx);
+
     view! {
+        <FileBrowser ctx=fb_ctx/>
         <div class="flex h-screen overflow-hidden bg-surface font-sans">
             <Sidebar active_nav set_active_nav set_active_view/>
             <div class="flex-1 flex flex-col overflow-hidden">
@@ -942,32 +1263,32 @@ fn Sidebar(
             >
                 <h1 class="text-2xl font-black tracking-tighter text-white">"OLIV4600"</h1>
                 <p class="uppercase text-[11px] font-bold text-[#66a6ea] tracking-tight">
-                    "Sovereign Intelligence"
+                    "Inteligencia Soberana"
                 </p>
             </div>
 
             <nav class="flex-1 space-y-6 overflow-y-auto">
-                <NavSection label="Main">
+                <NavSection label="Principal">
                     // TODO (Projects): navigating here should show the project browser —
                     // a grid of document cards with status badges (draft / processed / exported).
-                    <NavItem icon="folder_open"  label="Projects"  active=active_nav set_active=set_active_nav/>
+                    <NavItem icon="folder_open"  label="Proyectos"  active=active_nav set_active=set_active_nav/>
                     // TODO (Module 12 — Templates): show the template library where users can
                     // browse, preview, and apply organizational document templates (PLT-001..PLT-004).
-                    <NavItem icon="edit_note"    label="Templates" active=active_nav set_active=set_active_nav/>
+                    <NavItem icon="edit_note"    label="Plantillas" active=active_nav set_active=set_active_nav/>
                     <div
                         class="flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors text-slate-400 hover:text-white hover:bg-[#00335c]"
                         on:click=move |_| set_active_view.set(View::Archive)
                     >
                         <span class="material-symbols-outlined text-[20px]">"inventory_2"</span>
-                        <span class="font-sans font-bold text-[11px] uppercase tracking-widest">"Library"</span>
+                        <span class="font-sans font-bold text-[11px] uppercase tracking-widest">"Biblioteca"</span>
                     </div>
                     // TODO (AI Engine): configuration panel for the local LLM instance —
                     // model selection, inference parameters (temperature, context window),
                     // Ollama endpoint health, and memory/disk usage stats.
-                    <NavItem icon="memory"       label="AI Engine" active=active_nav set_active=set_active_nav/>
+                    <NavItem icon="memory"       label="Motor IA" active=active_nav set_active=set_active_nav/>
                 </NavSection>
 
-                <NavSection label="Recent Projects">
+                <NavSection label="Proyectos Recientes">
                     <div class="space-y-0.5 px-2">
                         {move || match recent_docs.get() {
                             None => view! {
@@ -1008,14 +1329,14 @@ fn Sidebar(
                     </div>
                 </NavSection>
 
-                <NavSection label="Templates">
+                <NavSection label="Plantillas">
                     <div class="space-y-0.5 px-2">
                         // TODO (Module 16 — GUI-003): clicking a template opens the Guided Form
                         // Constructor pre-filled with that document type's field schema, so the
                         // user can generate a full output package without an existing source file.
-                        <TemplateItem label="Press Release"/>
-                        <TemplateItem label="Internal Report"/>
-                        <TemplateItem label="Meeting Minutes"/>
+                        <TemplateItem label="Nota de Prensa"/>
+                        <TemplateItem label="Informe Interno"/>
+                        <TemplateItem label="Acta de Reunión"/>
                     </div>
                 </NavSection>
             </nav>
@@ -1031,7 +1352,7 @@ fn Sidebar(
                 // On completion, load document into global context → navigate to View::Editor.
                 <button class="w-full bg-[#003b65] text-[#66a6ea] py-3 px-4 rounded-lg font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#004d80] transition-colors active:scale-[0.98]">
                     <span class="material-symbols-outlined text-[18px]">"add"</span>
-                    "New Document"
+                    "Nuevo Documento"
                 </button>
 
                 // ── Status Ribbon ─────────────────────────────────────────────
@@ -1162,16 +1483,16 @@ fn TopBar(
                     // TODO: wire to GET /api/search?q={value} with 300ms debounce
                     <input
                         class="pl-10 pr-4 py-2 bg-surf-low border-none rounded-lg text-sm w-64 focus:outline-none focus:ring-1 focus:ring-primary"
-                        placeholder="Search archive..."
+                        placeholder="Buscar en el archivo…"
                         type="text"
                     />
                 </div>
                 <nav class="flex gap-6">
-                    <TopTab label="Editor"        view=View::Editor        active=active_view set_active=set_active_view/>
-                    <TopTab label="Analysis"      view=View::Analysis      active=active_view set_active=set_active_view/>
-                    <TopTab label="Chat"          view=View::Chat          active=active_view set_active=set_active_view/>
-                    <TopTab label="Verifiability" view=View::Pipeline      active=active_view set_active=set_active_view/>
-                    <TopTab label="Audit"         view=View::Audit         active=active_view set_active=set_active_view/>
+                    <TopTab label="Editor"         view=View::Editor        active=active_view set_active=set_active_view/>
+                    <TopTab label="Análisis"       view=View::Analysis      active=active_view set_active=set_active_view/>
+                    <TopTab label="Chat"           view=View::Chat          active=active_view set_active=set_active_view/>
+                    <TopTab label="Verificabilidad" view=View::Pipeline     active=active_view set_active=set_active_view/>
+                    <TopTab label="Auditoría"      view=View::Audit         active=active_view set_active=set_active_view/>
                 </nav>
             </div>
             <div class="flex items-center gap-4">
@@ -1186,7 +1507,7 @@ fn TopBar(
                 </div>
                 // TODO: context-sensitive action — see comment above TopBar component
                 <button class="px-4 py-2 bg-primary text-white rounded-lg font-bold text-sm hover:bg-[#003b65] transition-colors active:opacity-80">
-                    "Execute Process"
+                    "Ejecutar Proceso"
                 </button>
             </div>
         </header>
@@ -1243,8 +1564,16 @@ fn DashboardView(
     drag_over:       ReadSignal<bool>,
     set_drag_over:   WriteSignal<bool>,
 ) -> impl IntoView {
-    let ctx            = use_context::<DocumentCtx>().expect("DocumentCtx");
-    let file_input_ref = NodeRef::<leptos::html::Input>::new();
+    let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
+    let fb  = use_context::<FileBrowserCtx>().expect("FileBrowserCtx");
+
+    // Abre el modal custom filtrado por extensiones soportadas y, al
+    // seleccionar, llama a /api/extract con la ruta devuelta por /browse.
+    let open_file_picker = move |exts: Vec<&'static str>| {
+        fb.open_with_filter(exts, move |path: String| {
+            load_from_path(path, ctx, set_active_view);
+        });
+    };
 
     // ── Live transformations from SQLite ──────────────────────────────────────
     // JsFuture is !Send — use spawn_local + RwSignal instead of Resource.
@@ -1259,24 +1588,6 @@ fn DashboardView(
 
     view! {
         <section class="p-8 max-w-7xl mx-auto space-y-8">
-
-            // Input de archivo oculto — lo activan los botones y el drag-drop
-            // (ING-001, ING-002)
-            <input
-                type="file"
-                accept=".pdf,.docx,.txt,.odt,.html,.htm,.md,.csv"
-                class="hidden"
-                node_ref=file_input_ref
-                on:change=move |_| {
-                    if let Some(input) = file_input_ref.get() {
-                        if let Some(files) = input.files() {
-                            if let Some(file) = files.get(0) {
-                                upload_and_load(file, ctx, set_active_view);
-                            }
-                        }
-                    }
-                }
-            />
 
             // ── Hero: Drag & Drop Zone (ING-001, ING-002) ─────────────────────
             <div class="relative">
@@ -1312,14 +1623,14 @@ fn DashboardView(
                     <div class="flex flex-wrap justify-center gap-3">
                         // ING-001: PDF
                         <FileBtn icon="picture_as_pdf" label="PDF"
-                            on_click=move || { if let Some(i) = file_input_ref.get() { i.click(); } }
+                            on_click=move || open_file_picker(vec!["pdf"])
                         />
                         // ING-002: DOCX / TXT / ODT
                         <FileBtn icon="description" label="DOCX"
-                            on_click=move || { if let Some(i) = file_input_ref.get() { i.click(); } }
+                            on_click=move || open_file_picker(vec!["docx", "doc", "odt"])
                         />
                         <FileBtn icon="article" label="TXT"
-                            on_click=move || { if let Some(i) = file_input_ref.get() { i.click(); } }
+                            on_click=move || open_file_picker(vec!["txt", "md", "html", "htm", "csv"])
                         />
                         // ING-003: editor en blanco
                         <button
@@ -1340,7 +1651,7 @@ fn DashboardView(
                 <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-primary text-[#66a6ea] border border-[#66a6ea]/30 rounded-full flex items-center gap-2 shadow-xl whitespace-nowrap">
                     <div class="w-1.5 h-1.5 bg-[#66a6ea] rounded-full animate-pulse"></div>
                     <span class="text-[10px] font-black uppercase tracking-widest">
-                        "Sovereign Protocol Active"
+                        "Protocolo Soberano Activo"
                     </span>
                 </div>
             </div>
@@ -1373,34 +1684,34 @@ fn DashboardView(
                 <div class="md:col-span-2 bg-primary text-white p-8 rounded-xl flex flex-col justify-between min-h-[240px] relative overflow-hidden group">
                     <div class="relative z-10">
                         <span class="material-symbols-outlined text-[40px] text-[#66a6ea] mb-4 block">"auto_awesome"</span>
-                        <h3 class="font-serif italic text-2xl mb-2">"Advanced Transformation"</h3>
+                        <h3 class="font-serif italic text-2xl mb-2">"Transformación Avanzada"</h3>
                         <p class="text-slate-400 text-sm leading-relaxed max-w-xs">
-                            "Convert raw data into professional intelligence reports using the Qwen 3.5 engine."
+                            "Convierte datos en bruto en informes de inteligencia profesionales usando el motor Qwen 3.5."
                         </p>
                     </div>
                     <button class="relative z-10 mt-6 self-start px-4 py-2 bg-[#66a6ea] text-primary rounded-lg font-bold text-xs uppercase hover:scale-105 active:scale-95 transition-transform">
-                        "Initialize Engine"
+                        "Inicializar Motor"
                     </button>
                     <div class="absolute right-[-20px] bottom-[-20px] opacity-10 group-hover:scale-110 transition-transform duration-700 pointer-events-none">
                         <span class="material-symbols-outlined text-[200px]">"memory"</span>
                     </div>
                 </div>
                 <ActionCard icon="summarize" icon_color="text-action"
-                    title="Summarize" desc="Executive distillation of core concepts."
+                    title="Resumir" desc="Destilación ejecutiva de los conceptos clave."
                     on_click=move || {
                         ctx.pending_action.set(Some("executive_summary".to_string()));
                         set_active_view.set(View::Editor);
                     }
                 />
                 <ActionCard icon="campaign" icon_color="text-action"
-                    title="Press Release" desc="Draft professional public communications."
+                    title="Nota de Prensa" desc="Redacta comunicaciones públicas profesionales."
                     on_click=move || {
                         ctx.pending_action.set(Some("press_release".to_string()));
                         set_active_view.set(View::Editor);
                     }
                 />
                 <ActionCard icon="forum" icon_color="text-[#66a6ea]"
-                    title="Chat with Doc" desc="Direct query dialogue with your source text."
+                    title="Chat con Documento" desc="Diálogo directo con tu texto fuente."
                     on_click=move || set_active_view.set(View::Chat)
                 />
             </div>
@@ -1416,17 +1727,17 @@ fn DashboardView(
                 <div class="flex justify-between items-end">
                     <div>
                         <h3 class="font-sans font-black text-xl text-primary tracking-tighter">
-                            "Recent Transformations"
+                            "Transformaciones Recientes"
                         </h3>
                         <p class="font-serif italic text-on-surf-var text-sm">
-                            "History of processed intelligence"
+                            "Historial de inteligencia procesada"
                         </p>
                     </div>
                     <button
                         on:click=move |_| set_active_view.set(View::Archive)
                         class="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1 hover:underline"
                     >
-                        "View Full Archive"
+                        "Ver Archivo Completo"
                         <span class="material-symbols-outlined text-[16px]">"arrow_forward"</span>
                     </button>
                 </div>
@@ -1434,11 +1745,11 @@ fn DashboardView(
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="bg-surf-low border-b border-slate-200">
-                                <Th>"Document Name"</Th>
-                                <Th>"Transformation Type"</Th>
-                                <Th>"Timestamp"</Th>
+                                <Th>"Documento"</Th>
+                                <Th>"Tipo de Transformación"</Th>
+                                <Th>"Fecha"</Th>
                                 <th class="px-6 py-4 font-sans font-bold text-[10px] uppercase tracking-widest text-slate-500 text-right">
-                                    "Actions"
+                                    "Acciones"
                                 </th>
                             </tr>
                         </thead>
@@ -1485,7 +1796,7 @@ fn DashboardView(
                     <div class="flex items-center gap-8">
                         <div class="flex flex-col">
                             <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                "Computational Engine"
+                                "Motor Computacional"
                             </span>
                             // TODO: populate from GET /api/settings → llm_model field
                             <span class="font-sans font-bold text-primary">"Qwen 3.5 — 32B Instruct"</span>
@@ -1493,21 +1804,21 @@ fn DashboardView(
                         <div class="h-8 w-[1px] bg-slate-200 hidden md:block"></div>
                         <div class="flex flex-col">
                             <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                "Privacy Status"
+                                "Estado de Privacidad"
                             </span>
                             <span class="font-sans font-bold text-primary flex items-center gap-2">
                                 <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                                "100% Air-Gapped"
+                                "100% Aislado"
                             </span>
                         </div>
                     </div>
                     <div class="flex gap-4">
                         // TODO (TRA-003): export the full audit log as JSON/CSV
                         <button class="px-4 py-2 text-primary border border-primary rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-primary hover:text-white transition-all">
-                            "Export Audit Log"
+                            "Exportar Auditoría"
                         </button>
                         <button class="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold uppercase tracking-widest active:opacity-80 transition-all">
-                            "Emergency Purge"
+                            "Purga de Emergencia"
                         </button>
                     </div>
                 </div>
@@ -1627,6 +1938,109 @@ fn RowBtn(icon: &'static str) -> impl IntoView {
 // Corresponds to SRS modules: 2 (Summaries), 3 (Derived Content), 5 (Tone),
 // 6 (Assisted Editing), 12 (Templates), 13 (Verifiability), 14 (Safe Publication).
 
+// ─── CustomSelect (T29) ───────────────────────────────────────────────────────
+// Dropdown controlado (button + floating panel + backdrop invisible) para
+// reemplazar `<select>` nativo, cuya lista de opciones se pinta con el tema del
+// SO en WebKitGTK/WKWebView y rompe la coherencia visual. El backdrop `inset-0`
+// cierra el panel al clicar fuera — el panel tiene z-index superior, así que
+// clicks en opciones no llegan al backdrop. Soporta grupos opcionales.
+
+#[derive(Clone)]
+struct SelectOpt {
+    value: &'static str,
+    label: &'static str,
+}
+
+#[derive(Clone)]
+struct SelectGroup {
+    label: Option<&'static str>,
+    options: Vec<SelectOpt>,
+}
+
+#[component]
+fn CustomSelect(
+    #[prop(into)] value: Signal<String>,
+    #[prop(into)] on_change: Callback<String>,
+    groups: Vec<SelectGroup>,
+    #[prop(default = "")] class: &'static str,
+    #[prop(default = "Seleccionar…")] placeholder: &'static str,
+) -> impl IntoView {
+    let open = RwSignal::new(false);
+    let groups_label = groups.clone();
+    let current_label = Signal::derive(move || {
+        let v = value.get();
+        for g in &groups_label {
+            for o in &g.options {
+                if o.value == v { return o.label.to_string(); }
+            }
+        }
+        placeholder.to_string()
+    });
+
+    let items: Vec<_> = groups.iter().flat_map(|g| {
+        let mut rows: Vec<leptos::prelude::AnyView> = Vec::new();
+        if let Some(lbl) = g.label {
+            rows.push(view!{
+                <li class="px-3 pt-2 pb-1 text-[9px] font-black uppercase tracking-widest text-slate-400 select-none">
+                    {lbl}
+                </li>
+            }.into_any());
+        }
+        for o in &g.options {
+            let val_click = o.value.to_string();
+            let val_cmp   = o.value.to_string();
+            let lbl = o.label;
+            rows.push(view!{
+                <li>
+                    <button
+                        type="button"
+                        class=move || {
+                            let is_sel = value.get() == val_cmp;
+                            format!(
+                                "w-full text-left px-3 py-1.5 text-[11px] text-[#002542] hover:bg-slate-100 transition-colors {}",
+                                if is_sel { "bg-slate-100 font-bold" } else { "" }
+                            )
+                        }
+                        on:click=move |_| {
+                            on_change.run(val_click.clone());
+                            open.set(false);
+                        }
+                    >
+                        {lbl}
+                    </button>
+                </li>
+            }.into_any());
+        }
+        rows
+    }).collect();
+
+    view! {
+        <div class="relative">
+            <button
+                type="button"
+                class=format!("{class} inline-flex items-center justify-between gap-2 text-left cursor-pointer")
+                on:click=move |_| open.update(|o| *o = !*o)
+            >
+                <span class="truncate">{move || current_label.get()}</span>
+                <span class="material-symbols-outlined text-[16px] shrink-0">
+                    {move || if open.get() { "expand_less" } else { "expand_more" }}
+                </span>
+            </button>
+            <div
+                class="fixed inset-0 z-40"
+                style=move || if open.get() { "" } else { "display:none" }
+                on:click=move |_| open.set(false)
+            ></div>
+            <ul
+                class="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-64 overflow-y-auto py-1"
+                style=move || if open.get() { "" } else { "display:none" }
+            >
+                {items}
+            </ul>
+        </div>
+    }
+}
+
 #[component]
 fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
     let ctx = use_context::<DocumentCtx>().expect("DocumentCtx");
@@ -1687,6 +2101,22 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                         })}
                     </div>
                     <div class="flex gap-2 items-center">
+                        // Botón para abrir carpeta del proyecto (solo si hay doc_hash)
+                        {move || (!ctx.doc_hash.get().is_empty()).then(|| view! {
+                            <button
+                                class="text-[10px] font-bold uppercase tracking-tighter text-outline hover:text-primary flex items-center gap-1"
+                                title="Abrir carpeta del proyecto"
+                                on:click=move |_| {
+                                    let hash = ctx.doc_hash.get_untracked();
+                                    spawn_local(async move {
+                                        let _ = reveal_project_folder(hash).await;
+                                    });
+                                }
+                            >
+                                <span class="material-symbols-outlined text-sm">"folder_open"</span>
+                                "Carpeta"
+                            </button>
+                        })}
                         // Botón para cargar nuevo documento
                         <button
                             class="text-[10px] font-bold uppercase tracking-tighter text-outline hover:text-primary flex items-center gap-1"
@@ -1698,59 +2128,45 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                     </div>
                 </div>
 
-                // Área de texto del documento
-                // Si está vacío muestra editor; si tiene texto lo muestra como read-only
-                {move || {
-                    let text = ctx.text.get();
-                    if text.is_empty() {
-                        view! {
-                            // ING-003: editor en blanco (textarea)
-                            <textarea
-                                class="flex-1 w-full p-12 font-serif text-lg leading-relaxed text-on-surf/90 resize-none border-none focus:ring-0 bg-white placeholder:text-slate-300"
-                                placeholder="Escribe o pega el texto del documento aquí..."
-                                on:input=move |ev| {
-                                    ctx.text.set(event_target_value(&ev));
-                                    ctx.filename.set("Documento sin título".to_string());
-                                    ctx.word_count.set(
-                                        ctx.text.get_untracked().split_whitespace().count() as u32
-                                    );
-                                    // Auto-create scratch project when typing without an uploaded doc
-                                    let current_text = ctx.text.get_untracked();
-                                    let current_hash = ctx.doc_hash.get_untracked();
-                                    if current_hash.is_empty() && current_text.len() >= 50 {
-                                        let ts = js_sys::Date::now() as u64;
-                                        let scratch_hash = format!("scratch_{}", ts);
-                                        let doc_name = "Documento sin título".to_string();
-                                        let wc = current_text.split_whitespace().count() as u32;
-                                        ctx.doc_hash.set(scratch_hash.clone());
-                                        ctx.filename.set(doc_name.clone());
-                                        ctx.word_count.set(wc);
-                                        spawn_local(async move {
-                                            plugin_query(
-                                                "INSERT OR IGNORE INTO oliv_projects \
-                                                 (doc_hash, doc_name, original_path, word_count) \
-                                                 VALUES (?1, ?2, '', ?3)",
-                                                vec![
-                                                    serde_json::json!(scratch_hash),
-                                                    serde_json::json!(doc_name),
-                                                    serde_json::json!(wc),
-                                                ],
-                                            ).await;
-                                        });
-                                        // Trigger sidebar refresh
-                                        ctx.refresh_projects.update(|n| *n += 1);
-                                    }
-                                }
-                            />
-                        }.into_any()
-                    } else {
-                        view! {
-                            <div class="flex-1 overflow-y-auto p-12 font-serif text-base leading-relaxed text-on-surf/90 whitespace-pre-wrap">
-                                {text}
-                            </div>
-                        }.into_any()
+                // Área de texto del documento — siempre editable.
+                // Se renderiza una única vez (no envuelto en `move ||`) para que cambios
+                // en `ctx.text` no destruyan el nodo DOM del textarea (T28).
+                <textarea
+                    class="flex-1 w-full p-12 font-serif text-lg leading-relaxed text-on-surf/90 resize-none border-none focus:ring-0 bg-white placeholder:text-slate-300"
+                    placeholder="Escribe o pega el texto del documento aquí..."
+                    prop:value=move || ctx.text.get()
+                    on:input=move |ev| {
+                        let val = event_target_value(&ev);
+                        ctx.text.set(val.clone());
+                        let wc = val.split_whitespace().count() as u32;
+                        ctx.word_count.set(wc);
+                        // Auto-create scratch project when typing without an uploaded doc
+                        let current_hash = ctx.doc_hash.get_untracked();
+                        if current_hash.is_empty() && val.len() >= 50 {
+                            let ts = js_sys::Date::now() as u64;
+                            let scratch_hash = format!("scratch_{}", ts);
+                            let doc_name = "Documento sin título".to_string();
+                            ctx.doc_hash.set(scratch_hash.clone());
+                            ctx.filename.set(doc_name.clone());
+                            spawn_local(async move {
+                                plugin_query(
+                                    "INSERT OR IGNORE INTO oliv_projects \
+                                     (doc_hash, doc_name, original_path, word_count) \
+                                     VALUES (?1, ?2, '', ?3)",
+                                    vec![
+                                        serde_json::json!(scratch_hash),
+                                        serde_json::json!(doc_name),
+                                        serde_json::json!(wc),
+                                    ],
+                                ).await;
+                            });
+                            ctx.refresh_projects.update(|n| *n += 1);
+                        } else if ctx.filename.get_untracked().is_empty() {
+                            ctx.filename.set("Documento sin título".to_string());
+                        }
                     }
-                }}
+                />
+
 
                 // Pie del panel — estadísticas del documento
                 <div class="h-10 bg-surf-low border-t border-slate-100 flex items-center justify-between px-6 shrink-0">
@@ -1782,103 +2198,129 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                     // Action selector — todos los módulos SRS agrupados (RES, GEN, ADM, etc.)
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-on-surf-var mb-2">
-                            "Action Selector"
+                            "Selector de Acción"
                         </label>
-                        <select
+                        <CustomSelect
+                            value=Signal::derive(move || selected_action.get())
+                            on_change=Callback::new(move |v| set_selected_action.set(v))
                             class="w-full bg-[#001b30] text-white border-none text-[11px] font-bold py-2 px-2 focus:ring-0 rounded"
-                            on:change=move |ev| set_selected_action.set(event_target_value(&ev))
-                        >
-                            <optgroup label="── Resúmenes ──">
-                                <option value="executive_summary" selected>"Resumen Ejecutivo"</option>
-                                <option value="technical_summary">"Resumen Técnico"</option>
-                                <option value="divulgative_summary">"Resumen Divulgativo"</option>
-                                <option value="bullet_summary">"Puntos Clave"</option>
-                                <option value="chronological_summary">"Resumen Cronológico"</option>
-                                <option value="conclusions_summary">"Conclusiones y Recomendaciones"</option>
-                                <option value="briefing_2min">"Briefing 2 min"</option>
-                            </optgroup>
-                            <optgroup label="── Comunicación ──">
-                                <option value="press_release">"Nota de Prensa"</option>
-                                <option value="headlines">"Titulares"</option>
-                                <option value="linkedin_post">"Post LinkedIn"</option>
-                                <option value="twitter_thread">"Hilo Twitter/X"</option>
-                                <option value="blog_article">"Artículo de Blog"</option>
-                                <option value="instagram_post">"Post Instagram"</option>
-                                <option value="email_newsletter">"Email / Newsletter"</option>
-                                <option value="speech">"Discurso"</option>
-                                <option value="faqs">"FAQs"</option>
-                                <option value="one_pager">"One-Pager / Ficha Resumen"</option>
-                            </optgroup>
-                            <optgroup label="── Administración ──">
-                                <option value="key_quotes">"Citas Textuales"</option>
-                                <option value="official_report">"Informe Oficial"</option>
-                                <option value="meeting_minutes">"Acta de Reunión"</option>
-                                <option value="administrative_resolution">"Resolución Administrativa"</option>
-                                <option value="internal_memo">"Memorando Interno"</option>
-                                <option value="allegations_response">"Alegaciones / Negociación"</option>
-                            </optgroup>
-                            <optgroup label="── Edición ──">
-                                <option value="extract_commitments">"Compromisos Verificables"</option>
-                                <option value="rewrite_formal">"Reescritura Formal"</option>
-                                <option value="rewrite_shorter">"Reescritura Concisa"</option>
-                                <option value="rewrite_persuasive">"Reescritura Persuasiva"</option>
-                                <option value="rewrite_clearer">"Reescritura Clara"</option>
-                                <option value="detect_redundancies">"Detectar Redundancias"</option>
-                                <option value="translate_language">"Traducción"</option>
-                                <option value="sentiment_analysis">"Análisis de Sentimiento"</option>
-                                <option value="grammar_check">"Corrección Gramatical"</option>
-                                <option value="simplify">"Simplificar (Lenguaje Claro)"</option>
-                                <option value="detect_inconsistencies">"Detectar Inconsistencias"</option>
-                                <option value="reformulate_paragraph">"Reformular Párrafo"</option>
-                                <option value="detect_ambiguities">"Detectar Ambigüedades"</option>
-                                <option value="improve_suggestions">"Sugerencias de Mejora"</option>
-                                <option value="readability_analysis">"Análisis de Legibilidad"</option>
-                                <option value="detect_evasive_language">"Lenguaje Evasivo"</option>
-                            </optgroup>
-                            <optgroup label="── Inteligencia ──">
-                                <option value="semantic_versioning">"Versionado Semántico"</option>
-                                <option value="merge_documents">"Fusión de Documentos"</option>
-                                <option value="semantic_diff">"Diferencial Semántico"</option>
-                                <option value="document_intersection">"Intersección Documental"</option>
-                                <option value="detect_contradictions">"Detectar Contradicciones"</option>
-                                <option value="versions_compare">"Comparar Versiones"</option>
-                                <option value="inverse_questions">"Preguntas Inversas"</option>
-                                <option value="press_release_check">"Verificar Nota de Prensa"</option>
-                                <option value="validation_questions">"Checklist de Validación"</option>
-                            </optgroup>
-                            <optgroup label="── Extracción ──">
-                                <option value="ner_extraction">"Entidades (NER)"</option>
-                                <option value="keywords_extraction">"Palabras Clave"</option>
-                                <option value="event_timeline">"Línea Temporal"</option>
-                                <option value="impact_analysis">"Análisis de Impacto"</option>
-                                <option value="verifiability_check">"Verificabilidad"</option>
-                                <option value="evidence_gaps">"Huecos de Evidencia"</option>
-                                <option value="traceability_map">"Mapa de Trazabilidad"</option>
-                            </optgroup>
-                            <optgroup label="── Privacidad ──">
-                                <option value="anonymize">"Anonimización / Expurgo"</option>
-                                <option value="preflight_check">"Preflight Documental"</option>
-                                <option value="public_version">"Versión Pública"</option>
-                                <option value="rgpd_check">"Verificación RGPD/LOPDGDD"</option>
-                                <option value="style_linting">"Linting Documental"</option>
-                                <option value="reader_simulation">"Simulador de Lector"</option>
-                                <option value="generate_from_form">"Generar desde Formulario"</option>
-                                <option value="generate_file_package">"Paquete de Expediente"</option>
-                            </optgroup>
-                            <optgroup label="── Crisis ──">
-                                <option value="crisis_press_questions">"Simulacro Comparecencia"</option>
-                                <option value="crisis_communication">"Kit de Crisis Reputacional"</option>
-                                <option value="argumentario">"Argumentario"</option>
-                                <option value="difficult_questions_simulator">"Simulador Preguntas Difíciles"</option>
-                            </optgroup>
-                        </select>
+                            groups=vec![
+                                SelectGroup {
+                                    label: Some("Resúmenes"),
+                                    options: vec![
+                                        SelectOpt { value: "executive_summary",     label: "Resumen Ejecutivo" },
+                                        SelectOpt { value: "technical_summary",     label: "Resumen Técnico" },
+                                        SelectOpt { value: "divulgative_summary",   label: "Resumen Divulgativo" },
+                                        SelectOpt { value: "bullet_summary",        label: "Puntos Clave" },
+                                        SelectOpt { value: "chronological_summary", label: "Resumen Cronológico" },
+                                        SelectOpt { value: "conclusions_summary",   label: "Conclusiones y Recomendaciones" },
+                                        SelectOpt { value: "briefing_2min",         label: "Briefing 2 min" },
+                                    ],
+                                },
+                                SelectGroup {
+                                    label: Some("Comunicación"),
+                                    options: vec![
+                                        SelectOpt { value: "press_release",    label: "Nota de Prensa" },
+                                        SelectOpt { value: "headlines",        label: "Titulares" },
+                                        SelectOpt { value: "linkedin_post",    label: "Post LinkedIn" },
+                                        SelectOpt { value: "twitter_thread",   label: "Hilo Twitter/X" },
+                                        SelectOpt { value: "blog_article",     label: "Artículo de Blog" },
+                                        SelectOpt { value: "instagram_post",   label: "Post Instagram" },
+                                        SelectOpt { value: "email_newsletter", label: "Email / Newsletter" },
+                                        SelectOpt { value: "speech",           label: "Discurso" },
+                                        SelectOpt { value: "faqs",             label: "FAQs" },
+                                        SelectOpt { value: "one_pager",        label: "One-Pager / Ficha Resumen" },
+                                    ],
+                                },
+                                SelectGroup {
+                                    label: Some("Administración"),
+                                    options: vec![
+                                        SelectOpt { value: "key_quotes",                label: "Citas Textuales" },
+                                        SelectOpt { value: "official_report",           label: "Informe Oficial" },
+                                        SelectOpt { value: "meeting_minutes",           label: "Acta de Reunión" },
+                                        SelectOpt { value: "administrative_resolution", label: "Resolución Administrativa" },
+                                        SelectOpt { value: "internal_memo",             label: "Memorando Interno" },
+                                        SelectOpt { value: "allegations_response",      label: "Alegaciones / Negociación" },
+                                    ],
+                                },
+                                SelectGroup {
+                                    label: Some("Edición"),
+                                    options: vec![
+                                        SelectOpt { value: "extract_commitments",     label: "Compromisos Verificables" },
+                                        SelectOpt { value: "rewrite_formal",          label: "Reescritura Formal" },
+                                        SelectOpt { value: "rewrite_shorter",         label: "Reescritura Concisa" },
+                                        SelectOpt { value: "rewrite_persuasive",      label: "Reescritura Persuasiva" },
+                                        SelectOpt { value: "rewrite_clearer",         label: "Reescritura Clara" },
+                                        SelectOpt { value: "detect_redundancies",     label: "Detectar Redundancias" },
+                                        SelectOpt { value: "translate_language",      label: "Traducción" },
+                                        SelectOpt { value: "sentiment_analysis",      label: "Análisis de Sentimiento" },
+                                        SelectOpt { value: "grammar_check",           label: "Corrección Gramatical" },
+                                        SelectOpt { value: "simplify",                label: "Simplificar (Lenguaje Claro)" },
+                                        SelectOpt { value: "detect_inconsistencies",  label: "Detectar Inconsistencias" },
+                                        SelectOpt { value: "reformulate_paragraph",   label: "Reformular Párrafo" },
+                                        SelectOpt { value: "detect_ambiguities",      label: "Detectar Ambigüedades" },
+                                        SelectOpt { value: "improve_suggestions",     label: "Sugerencias de Mejora" },
+                                        SelectOpt { value: "readability_analysis",    label: "Análisis de Legibilidad" },
+                                        SelectOpt { value: "detect_evasive_language", label: "Lenguaje Evasivo" },
+                                    ],
+                                },
+                                SelectGroup {
+                                    label: Some("Inteligencia"),
+                                    options: vec![
+                                        SelectOpt { value: "semantic_versioning",    label: "Versionado Semántico" },
+                                        SelectOpt { value: "merge_documents",        label: "Fusión de Documentos" },
+                                        SelectOpt { value: "semantic_diff",          label: "Diferencial Semántico" },
+                                        SelectOpt { value: "document_intersection",  label: "Intersección Documental" },
+                                        SelectOpt { value: "detect_contradictions",  label: "Detectar Contradicciones" },
+                                        SelectOpt { value: "versions_compare",       label: "Comparar Versiones" },
+                                        SelectOpt { value: "inverse_questions",      label: "Preguntas Inversas" },
+                                        SelectOpt { value: "press_release_check",    label: "Verificar Nota de Prensa" },
+                                        SelectOpt { value: "validation_questions",   label: "Checklist de Validación" },
+                                    ],
+                                },
+                                SelectGroup {
+                                    label: Some("Extracción"),
+                                    options: vec![
+                                        SelectOpt { value: "ner_extraction",       label: "Entidades (NER)" },
+                                        SelectOpt { value: "keywords_extraction",  label: "Palabras Clave" },
+                                        SelectOpt { value: "event_timeline",       label: "Línea Temporal" },
+                                        SelectOpt { value: "impact_analysis",      label: "Análisis de Impacto" },
+                                        SelectOpt { value: "verifiability_check",  label: "Verificabilidad" },
+                                        SelectOpt { value: "evidence_gaps",        label: "Huecos de Evidencia" },
+                                        SelectOpt { value: "traceability_map",     label: "Mapa de Trazabilidad" },
+                                    ],
+                                },
+                                SelectGroup {
+                                    label: Some("Privacidad"),
+                                    options: vec![
+                                        SelectOpt { value: "anonymize",             label: "Anonimización / Expurgo" },
+                                        SelectOpt { value: "preflight_check",       label: "Preflight Documental" },
+                                        SelectOpt { value: "public_version",        label: "Versión Pública" },
+                                        SelectOpt { value: "rgpd_check",            label: "Verificación RGPD/LOPDGDD" },
+                                        SelectOpt { value: "style_linting",         label: "Linting Documental" },
+                                        SelectOpt { value: "reader_simulation",     label: "Simulador de Lector" },
+                                        SelectOpt { value: "generate_from_form",    label: "Generar desde Formulario" },
+                                        SelectOpt { value: "generate_file_package", label: "Paquete de Expediente" },
+                                    ],
+                                },
+                                SelectGroup {
+                                    label: Some("Crisis"),
+                                    options: vec![
+                                        SelectOpt { value: "crisis_press_questions",        label: "Simulacro Comparecencia" },
+                                        SelectOpt { value: "crisis_communication",          label: "Kit de Crisis Reputacional" },
+                                        SelectOpt { value: "argumentario",                  label: "Argumentario" },
+                                        SelectOpt { value: "difficult_questions_simulator", label: "Simulador Preguntas Difíciles" },
+                                    ],
+                                },
+                            ]
+                        />
                     </div>
 
                     // Output length slider (RES-007: 50–500 words)
                     <div class="space-y-6">
                         <div>
                             <div class="flex justify-between mb-2">
-                                <label class="text-[10px] font-black uppercase text-on-surf-var">"Length"</label>
+                                <label class="text-[10px] font-black uppercase text-on-surf-var">"Extensión"</label>
                                 <span class="text-[10px] font-bold text-primary">
                                     {move || format!("{}w", length_words.get())}
                                 </span>
@@ -1899,7 +2341,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                         // Tone slider (TON-001: 1=Coloquial … 5=Formal Institucional)
                         <div>
                             <div class="flex justify-between mb-2">
-                                <label class="text-[10px] font-black uppercase text-on-surf-var">"Tone"</label>
+                                <label class="text-[10px] font-black uppercase text-on-surf-var">"Tono"</label>
                                 <span class="text-[10px] font-bold text-primary">
                                     {move || tone_label(tone.get())}
                                 </span>
@@ -1920,17 +2362,22 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                         // Audience selector (RES-008) — valor inyectado en {publico_objetivo}
                         <div>
                             <label class="block text-[10px] font-black uppercase text-on-surf-var mb-2">
-                                "Audience"
+                                "Audiencia"
                             </label>
-                            <select
-                                class="w-full bg-surf-highest border-none text-[11px] font-bold py-2 focus:ring-0 rounded"
-                                on:change=move |ev| set_audience.set(event_target_value(&ev))
-                            >
-                                <option value="citizen">"Ciudad / Ciudadanía"</option>
-                                <option value="press">"Prensa / Global"</option>
-                                <option value="technical" selected>"Técnico / Interno"</option>
-                                <option value="executive">"Ejecutivo / Decisor"</option>
-                            </select>
+                            <CustomSelect
+                                value=Signal::derive(move || audience.get())
+                                on_change=Callback::new(move |v| set_audience.set(v))
+                                class="w-full bg-surf-highest border-none text-[11px] font-bold py-2 px-2 focus:ring-0 rounded"
+                                groups=vec![SelectGroup {
+                                    label: None,
+                                    options: vec![
+                                        SelectOpt { value: "citizen",   label: "Ciudad / Ciudadanía" },
+                                        SelectOpt { value: "press",     label: "Prensa / Global" },
+                                        SelectOpt { value: "technical", label: "Técnico / Interno" },
+                                        SelectOpt { value: "executive", label: "Ejecutivo / Decisor" },
+                                    ],
+                                }]
+                            />
                         </div>
                     </div>
                 </div>
@@ -1953,7 +2400,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                     >
                         <span class="material-symbols-outlined text-2xl group-active:animate-pulse">"bolt"</span>
                         <span class="text-[11px] font-black uppercase tracking-widest">
-                            {move || if ctx.processing.get() { "Procesando..." } else { "Generate" }}
+                            {move || if ctx.processing.get() { "Procesando..." } else { "Generar" }}
                         </span>
                     </button>
                     <p class="text-[8px] text-center mt-3 text-slate-500 font-bold uppercase tracking-tight">
@@ -1976,8 +2423,8 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                         <span class="text-[10px] font-bold uppercase tracking-tighter text-[#C45911]">
                             {move || {
                                 let lbl = ctx.output_label.get();
-                                if lbl.is_empty() { "Output".to_string() }
-                                else { format!("Output: {lbl}") }
+                                if lbl.is_empty() { "Resultado".to_string() }
+                                else { format!("Resultado: {lbl}") }
                             }}
                         </span>
                         // Cursor parpadeante mientras streameamos
@@ -1993,7 +2440,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                             on:click=move |_| copy_to_clipboard(ctx.output.get_untracked())
                         >
                             <span class="material-symbols-outlined text-sm">"content_copy"</span>
-                            " Copy"
+                            " Copiar"
                         </button>
                         // EXO-002..EXO-005: modal de exportación
                         <button
@@ -2002,7 +2449,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                             on:click=move |_| show_export.set(true)
                         >
                             <span class="material-symbols-outlined text-sm">"ios_share"</span>
-                            " Export"
+                            " Exportar"
                         </button>
                     </div>
                 </div>
@@ -2041,7 +2488,7 @@ fn EditorView(set_active_view: WriteSignal<View>) -> impl IntoView {
                             <div class="flex flex-col items-center justify-center h-full text-center opacity-40">
                                 <span class="material-symbols-outlined text-[48px] text-primary mb-4">"bolt"</span>
                                 <p class="font-serif italic text-xl text-primary">
-                                    "Configura los parámetros y pulsa Generate"
+                                    "Configura los parámetros y pulsa Generar"
                                 </p>
                             </div>
                         }.into_any()
@@ -2125,10 +2572,12 @@ fn ExportModal(
     ctx:   DocumentCtx,
     toast: RwSignal<Option<String>>,
 ) -> impl IntoView {
+    let fb = use_context::<FileBrowserCtx>().expect("FileBrowserCtx");
     view! {
         {move || show.get().then(|| {
             let label  = ctx.output_label.get_untracked();
             let output = ctx.output.get_untracked();
+            let _hash  = ctx.doc_hash.get_untracked();
             let fname  = ctx.filename.get_untracked()
                 .trim_end_matches(".pdf")
                 .trim_end_matches(".docx")
@@ -2162,48 +2611,70 @@ fn ExportModal(
                                     on_click=move || { copy_to_clipboard(o.clone()); s.set(false); }
                                 />
                             }}
-                            // EXO-005: Markdown (blob download — funciona para texto)
-                            {let (o, s, b, l) = (output.clone(), show, base.clone(), label.clone());
+                            // EXO-005: Markdown → FileBrowser (pick dir) + save-as
+                            {let (o, s, b, l, t) = (output.clone(), show, base.clone(), label.clone(), toast);
                             view! {
                                 <ExportRow icon="code" label="Markdown (.md)"
                                     on_click=move || {
-                                        download_text(o.clone(), &format!("{b} - {l}.md"), "text/markdown");
+                                        let fname = format!("{b} - {l}.md");
+                                        let (text, lbl, fn2) = (o.clone(), l.clone(), fname.clone());
                                         s.set(false);
-                                    }
-                                />
-                            }}
-                            // EXO-003: Texto plano (blob download)
-                            {let (o, s, b, l) = (output.clone(), show, base.clone(), label.clone());
-                            view! {
-                                <ExportRow icon="text_snippet" label="Texto plano (.txt)"
-                                    on_click=move || {
-                                        download_text(o.clone(), &format!("{b} - {l}.txt"), "text/plain");
-                                        s.set(false);
-                                    }
-                                />
-                            }}
-                            // EXO-002: DOCX — guardado en workspace + Finder
-                            {let (o, s, b, l, t) = (output.clone(), show, base.clone(), label.clone(), toast);
-                            view! {
-                                <ExportRow icon="description" label="Word Document (.docx)"
-                                    on_click=move || {
-                                        let (text, lbl, fname) = (o.clone(), l.clone(), format!("{b} - {l}.docx"));
-                                        s.set(false);
-                                        spawn_local(async move {
-                                            fetch_render(text, lbl, "docx".to_string(), fname, t).await;
+                                        fb.pick_dir(fname, move |dir: String| {
+                                            let (text, lbl, fn2, t) = (text.clone(), lbl.clone(), fn2.clone(), t);
+                                            spawn_local(async move {
+                                                fetch_save_as(text, lbl, "md".into(), dir, fn2, t).await;
+                                            });
                                         });
                                     }
                                 />
                             }}
-                            // EXO-006: PDF — guardado en workspace + Finder
+                            // EXO-003: Texto plano → FileBrowser + save-as
+                            {let (o, s, b, l, t) = (output.clone(), show, base.clone(), label.clone(), toast);
+                            view! {
+                                <ExportRow icon="text_snippet" label="Texto plano (.txt)"
+                                    on_click=move || {
+                                        let fname = format!("{b} - {l}.txt");
+                                        let (text, lbl, fn2) = (o.clone(), l.clone(), fname.clone());
+                                        s.set(false);
+                                        fb.pick_dir(fname, move |dir: String| {
+                                            let (text, lbl, fn2, t) = (text.clone(), lbl.clone(), fn2.clone(), t);
+                                            spawn_local(async move {
+                                                fetch_save_as(text, lbl, "txt".into(), dir, fn2, t).await;
+                                            });
+                                        });
+                                    }
+                                />
+                            }}
+                            // EXO-002: DOCX → FileBrowser + save-as
+                            {let (o, s, b, l, t) = (output.clone(), show, base.clone(), label.clone(), toast);
+                            view! {
+                                <ExportRow icon="description" label="Word Document (.docx)"
+                                    on_click=move || {
+                                        let fname = format!("{b} - {l}.docx");
+                                        let (text, lbl, fn2) = (o.clone(), l.clone(), fname.clone());
+                                        s.set(false);
+                                        fb.pick_dir(fname, move |dir: String| {
+                                            let (text, lbl, fn2, t) = (text.clone(), lbl.clone(), fn2.clone(), t);
+                                            spawn_local(async move {
+                                                fetch_save_as(text, lbl, "docx".into(), dir, fn2, t).await;
+                                            });
+                                        });
+                                    }
+                                />
+                            }}
+                            // EXO-006: PDF → FileBrowser + save-as
                             {let (o, s, b, l, t) = (output.clone(), show, base.clone(), label.clone(), toast);
                             view! {
                                 <ExportRow icon="picture_as_pdf" label="PDF Document (.pdf)"
                                     on_click=move || {
-                                        let (text, lbl, fname) = (o.clone(), l.clone(), format!("{b} - {l}.pdf"));
+                                        let fname = format!("{b} - {l}.pdf");
+                                        let (text, lbl, fn2) = (o.clone(), l.clone(), fname.clone());
                                         s.set(false);
-                                        spawn_local(async move {
-                                            fetch_render(text, lbl, "pdf".to_string(), fname, t).await;
+                                        fb.pick_dir(fname, move |dir: String| {
+                                            let (text, lbl, fn2, t) = (text.clone(), lbl.clone(), fn2.clone(), t);
+                                            spawn_local(async move {
+                                                fetch_save_as(text, lbl, "pdf".into(), dir, fn2, t).await;
+                                            });
                                         });
                                     }
                                 />
@@ -2575,8 +3046,38 @@ fn AnalysisView() -> impl IntoView {
                 r.readability_raw, r.sentiment_raw, r.anomalies_raw,
                 r.ner_raw, r.keywords_raw, r.timeline_raw, r.impact_raw
             );
+            // Descarga nativa como texto — el render pipeline sólo hace
+            // docx/pdf y el WebView puede disparar el diálogo "Guardar como"
+            // directamente desde un blob. También disparamos una copia al
+            // proyecto si hay doc_hash (POST /api/workspace/save).
+            let hash = ctx.doc_hash.get_untracked();
+            if !hash.is_empty() {
+                let (h, txt) = (hash.clone(), text.clone());
+                spawn_local(async move {
+                    let body = serde_json::json!({
+                        "doc_hash": h,
+                        "filename": "analysis.txt",
+                        "content":  txt,
+                    }).to_string();
+                    let headers = web_sys::Headers::new().unwrap();
+                    headers.set("Content-Type", "application/json").unwrap();
+                    let opts = web_sys::RequestInit::new();
+                    opts.set_method("POST");
+                    opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+                    opts.set_headers(&wasm_bindgen::JsValue::from(headers));
+                    if let Ok(req) = web_sys::Request::new_with_str_and_init("/api/workspace/save", &opts) {
+                        if let Some(w) = web_sys::window() {
+                            let _ = JsFuture::from(w.fetch_with_request(&req)).await;
+                        }
+                    }
+                });
+            }
+            download_text(text, "analysis.txt", "text/plain;charset=utf-8");
+            toast.set(Some("✓ Descarga iniciada: analysis.txt".into()));
+            let t = toast;
             spawn_local(async move {
-                fetch_render(text, label, "txt".to_string(), "analysis.txt".to_string(), toast).await;
+                gloo_timers::future::TimeoutFuture::new(4_000).await;
+                t.set(None);
             });
         }
     };
@@ -3007,7 +3508,7 @@ fn ChatView() -> impl IntoView {
                         <div class="flex items-center gap-2">
                             <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
                             <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                "Local Instance Online"
+                                "Instancia Local Activa"
                             </span>
                         </div>
                     </div>
@@ -3177,7 +3678,7 @@ fn ChatBubbleAi(text: &'static str) -> impl IntoView {
                 <p class="font-serif text-lg text-slate-700 leading-snug">{text}</p>
                 <button class="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                     <span class="material-symbols-outlined text-xs">"export_notes"</span>
-                    "Export Answer"
+                    "Exportar Respuesta"
                 </button>
             </div>
         </div>
@@ -3192,7 +3693,7 @@ fn ChatBubbleUser(text: &'static str, time: &'static str) -> impl IntoView {
                 <p class="text-sm leading-relaxed">{text}</p>
             </div>
             <span class="text-[10px] font-bold uppercase text-slate-300 mt-2 mr-1">
-                {format!("Sent {time}")}
+                {format!("Enviado {time}")}
             </span>
         </div>
     }
@@ -3212,33 +3713,33 @@ fn ChatBubbleAiDetailed() -> impl IntoView {
             </div>
             <div class="bg-surf-low p-6 rounded-xl rounded-tl-none border border-slate-100 group space-y-4">
                 <p class="font-serif text-lg text-slate-700 leading-snug">
-                    "Based on the highlighted sections of the report, the security benefits
-                    of the local OLIV4600 engine are three-fold:"
+                    "Según las secciones destacadas del informe, los beneficios de seguridad
+                    del motor local OLIV4600 son tres:"
                 </p>
                 <ul class="space-y-3 text-sm text-slate-600">
                     // TODO (VER-002): each numbered point should carry a source citation
                     // e.g. "— §2, para. 3" that links back to the document panel
-                    <ChatAnswerPoint n="01" title="Data Sovereignty"
-                        text="By operating within a hardened perimeter, no raw document data or inference
-                              metadata ever traverses the public internet, mitigating the risk of MITM attacks."
+                    <ChatAnswerPoint n="01" title="Soberanía de Datos"
+                        text="Al operar dentro de un perímetro endurecido, ningún dato bruto del documento ni
+                              metadato de inferencia sale a internet público, mitigando el riesgo de ataques MITM."
                     />
-                    <ChatAnswerPoint n="02" title="Latency Elimination"
-                        text="Local execution ensures deterministic response times for kinetic-response
-                              applications where millisecond delays are critical."
+                    <ChatAnswerPoint n="02" title="Eliminación de Latencia"
+                        text="La ejecución local garantiza tiempos de respuesta deterministas para aplicaciones
+                              de respuesta rápida donde cada milisegundo cuenta."
                     />
-                    <ChatAnswerPoint n="03" title="Verification"
-                        text="The engine supports hardware-level auditing, allowing human operators to verify
-                              the exact compute paths used to generate an intelligence output."
+                    <ChatAnswerPoint n="03" title="Verificación"
+                        text="El motor soporta auditoría a nivel de hardware, permitiendo a los operadores humanos
+                              verificar las rutas de cómputo exactas usadas para generar una salida de inteligencia."
                     />
                 </ul>
                 <div class="pt-4 flex gap-4">
                     <button class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-primary">
                         <span class="material-symbols-outlined text-xs">"content_copy"</span>
-                        "Copy"
+                        "Copiar"
                     </button>
                     <button class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-primary">
                         <span class="material-symbols-outlined text-xs">"export_notes"</span>
-                        "Export Answer"
+                        "Exportar Respuesta"
                     </button>
                 </div>
             </div>
@@ -3461,7 +3962,7 @@ fn PipelineView() -> impl IntoView {
             // ── Header ─────────────────────────────────────────────────────────
             <div>
                 <h2 class="font-sans text-4xl font-black text-[#002542] tracking-tight mb-2">
-                    "Production Pipeline"
+                    "Pipeline de Producción"
                 </h2>
                 <p class="font-serif italic text-slate-500 text-xl max-w-2xl">
                     "Cola de transformaciones por lotes — ejecuta múltiples acciones secuencialmente sobre el documento cargado."
@@ -3484,26 +3985,40 @@ fn PipelineView() -> impl IntoView {
                     "Añadir transformación a la cola"
                 </span>
                 <div class="flex items-center gap-4">
-                    <select
-                        class="flex-1 border border-slate-300 bg-white px-4 py-2 font-sans text-sm text-[#002542] focus:outline-none focus:border-[#002542]"
-                        on:change=move |ev| {
-                            selected_action.set(event_target_value(&ev));
-                        }
-                    >
-                        // Summaries
-                        <option value="executive_summary">"Resumen Ejecutivo"</option>
-                        <option value="technical_summary">"Resumen Técnico"</option>
-                        <option value="divulgative_summary">"Resumen Divulgativo"</option>
-                        <option value="bullet_summary">"Puntos Clave"</option>
-                        // Press / Social
-                        <option value="press_release">"Nota de Prensa"</option>
-                        <option value="headlines">"Titulares"</option>
-                        <option value="linkedin_post">"Post LinkedIn"</option>
-                        // Analysis
-                        <option value="sentiment_analysis">"Análisis de Sentimiento"</option>
-                        <option value="ner_extraction">"Extracción de Entidades (NER)"</option>
-                        <option value="readability_analysis">"Análisis de Legibilidad"</option>
-                    </select>
+                    <div class="flex-1">
+                        <CustomSelect
+                            value=Signal::derive(move || selected_action.get())
+                            on_change=Callback::new(move |v| selected_action.set(v))
+                            class="w-full border border-slate-300 bg-white px-4 py-2 font-sans text-sm text-[#002542] focus:outline-none"
+                            groups=vec![
+                                SelectGroup {
+                                    label: Some("Resúmenes"),
+                                    options: vec![
+                                        SelectOpt { value: "executive_summary",   label: "Resumen Ejecutivo" },
+                                        SelectOpt { value: "technical_summary",   label: "Resumen Técnico" },
+                                        SelectOpt { value: "divulgative_summary", label: "Resumen Divulgativo" },
+                                        SelectOpt { value: "bullet_summary",      label: "Puntos Clave" },
+                                    ],
+                                },
+                                SelectGroup {
+                                    label: Some("Prensa / Social"),
+                                    options: vec![
+                                        SelectOpt { value: "press_release", label: "Nota de Prensa" },
+                                        SelectOpt { value: "headlines",     label: "Titulares" },
+                                        SelectOpt { value: "linkedin_post", label: "Post LinkedIn" },
+                                    ],
+                                },
+                                SelectGroup {
+                                    label: Some("Análisis"),
+                                    options: vec![
+                                        SelectOpt { value: "sentiment_analysis",   label: "Análisis de Sentimiento" },
+                                        SelectOpt { value: "ner_extraction",       label: "Extracción de Entidades (NER)" },
+                                        SelectOpt { value: "readability_analysis", label: "Análisis de Legibilidad" },
+                                    ],
+                                },
+                            ]
+                        />
+                    </div>
                     <button
                         class="flex items-center gap-2 bg-[#002542] text-white px-6 py-2 font-sans font-bold text-sm uppercase tracking-widest hover:bg-[#003b65] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         disabled=move || ctx.text.get().is_empty() || running.get()
@@ -3828,31 +4343,67 @@ fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
     let projects:   RwSignal<Option<Vec<ApiProject>>> = RwSignal::new(None);
     let search:     RwSignal<String>                  = RwSignal::new(String::new());
     let loading:    RwSignal<bool>                    = RwSignal::new(true);
+    // (doc_hash, doc_name) del proyecto pendiente de confirmar borrado.
+    let pending_delete: RwSignal<Option<(String, String)>> = RwSignal::new(None);
+    let deleting:       RwSignal<bool>                     = RwSignal::new(false);
 
     // ── Cargar proyectos al montar ────────────────────────────────────────────
     // El plugin lee su propia tabla oliv_projects vía el endpoint genérico del core.
-    spawn_local(async move {
-        let rows = plugin_query(
-            "SELECT doc_hash, doc_name, original_path, word_count, \
-             transform_count, has_analysis, created_at, updated_at \
-             FROM oliv_projects ORDER BY updated_at DESC LIMIT 200",
-            vec![],
-        ).await;
-        let data = rows.into_iter().filter_map(|r| {
-            Some(ApiProject {
-                doc_hash:        r["doc_hash"].as_str()?.to_string(),
-                doc_name:        r["doc_name"].as_str()?.to_string(),
-                original_path:   r["original_path"].as_str()?.to_string(),
-                word_count:      r["word_count"].as_u64()? as u32,
-                transform_count: r["transform_count"].as_u64()? as u32,
-                has_analysis:    r["has_analysis"].as_i64()? != 0,
-                created_at:      r["created_at"].as_str()?.to_string(),
-                updated_at:      r["updated_at"].as_str()?.to_string(),
-            })
-        }).collect::<Vec<_>>();
-        projects.set(Some(data));
-        loading.set(false);
-    });
+    let reload_projects = move || {
+        loading.set(true);
+        spawn_local(async move {
+            let rows = plugin_query(
+                "SELECT doc_hash, doc_name, original_path, word_count, \
+                 transform_count, has_analysis, created_at, updated_at \
+                 FROM oliv_projects ORDER BY updated_at DESC LIMIT 200",
+                vec![],
+            ).await;
+            let data = rows.into_iter().filter_map(|r| {
+                Some(ApiProject {
+                    doc_hash:        r["doc_hash"].as_str()?.to_string(),
+                    doc_name:        r["doc_name"].as_str()?.to_string(),
+                    original_path:   r["original_path"].as_str()?.to_string(),
+                    word_count:      r["word_count"].as_u64()? as u32,
+                    transform_count: r["transform_count"].as_u64()? as u32,
+                    has_analysis:    r["has_analysis"].as_i64()? != 0,
+                    created_at:      r["created_at"].as_str()?.to_string(),
+                    updated_at:      r["updated_at"].as_str()?.to_string(),
+                })
+            }).collect::<Vec<_>>();
+            projects.set(Some(data));
+            loading.set(false);
+        });
+    };
+    reload_projects();
+
+    // Confirmar borrado: llama al backend + limpia caches + refresca listas.
+    let confirm_delete = move || {
+        if let Some((hash, _)) = pending_delete.get_untracked() {
+            deleting.set(true);
+            spawn_local(async move {
+                let result = delete_project(hash.clone()).await;
+                deleting.set(false);
+                pending_delete.set(None);
+                match result {
+                    Ok(()) => {
+                        // Si el Editor estaba abierto en este proyecto, limpiar contexto.
+                        if ctx.doc_hash.get_untracked() == hash {
+                            ctx.doc_hash.set(String::new());
+                            ctx.text.set(String::new());
+                            ctx.filename.set(String::new());
+                            ctx.word_count.set(0);
+                        }
+                        // Refrescar lista local + notificar al Sidebar.
+                        ctx.refresh_projects.update(|n| *n += 1);
+                        reload_projects();
+                    }
+                    Err(e) => {
+                        web_sys::console::error_1(&format!("delete_project: {e}").into());
+                    }
+                }
+            });
+        }
+    };
 
     // ── Proyectos filtrados por búsqueda ──────────────────────────────────────
     let filtered = move || {
@@ -4021,6 +4572,9 @@ fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
                             {rows.into_iter().map(|p| {
                                 let hash1 = p.doc_hash.clone();
                                 let hash2 = p.doc_hash.clone();
+                                let hash3 = p.doc_hash.clone();
+                                let name_del = p.doc_name.split('/').last()
+                                    .unwrap_or(&p.doc_name).to_string();
                                 let has_a = p.has_analysis;
                                 // Fecha legible: tomar los 10 primeros chars del ISO string
                                 let date = if p.updated_at.len() >= 10 {
@@ -4106,6 +4660,18 @@ fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
                                             >
                                                 <span class="material-symbols-outlined text-[18px]">"analytics"</span>
                                             </button>
+                                            // Borrar proyecto
+                                            <button
+                                                on:click={
+                                                    let h = hash3.clone();
+                                                    let n = name_del.clone();
+                                                    move |_| pending_delete.set(Some((h.clone(), n.clone())))
+                                                }
+                                                title="Borrar proyecto"
+                                                class="p-1.5 text-outline hover:text-red-600 transition-colors rounded"
+                                            >
+                                                <span class="material-symbols-outlined text-[18px]">"delete"</span>
+                                            </button>
                                         </div>
                                     </div>
                                 }
@@ -4124,6 +4690,45 @@ fn ArchiveView(set_active_view: WriteSignal<View>) -> impl IntoView {
                     "~/.local-ai/projects/ · datos 100% locales"
                 </p>
             </footer>
+
+            // ── Modal de confirmación de borrado ──────────────────────────────
+            {move || pending_delete.get().map(|(_, name)| {
+                view! {
+                    <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6">
+                        <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                            <div class="flex items-start gap-3 mb-4">
+                                <span class="material-symbols-outlined text-red-600 text-[28px] shrink-0">"warning"</span>
+                                <div>
+                                    <h3 class="font-sans font-black text-lg text-primary uppercase tracking-tight">
+                                        "Borrar proyecto"
+                                    </h3>
+                                    <p class="font-serif text-sm text-on-surface-variant mt-1">
+                                        "Se eliminará "
+                                        <strong class="text-primary">{name}</strong>
+                                        " y todos sus archivos generados. Esta acción no se puede deshacer."
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-2 mt-6">
+                                <button
+                                    on:click=move |_| pending_delete.set(None)
+                                    disabled=move || deleting.get()
+                                    class="px-4 py-2 text-sm font-bold uppercase tracking-widest text-outline hover:text-primary transition-colors disabled:opacity-50"
+                                >
+                                    "Cancelar"
+                                </button>
+                                <button
+                                    on:click=move |_| confirm_delete()
+                                    disabled=move || deleting.get()
+                                    class="px-4 py-2 bg-red-600 text-white text-[11px] font-bold uppercase tracking-widest rounded-sm hover:bg-red-700 transition-colors disabled:opacity-60"
+                                >
+                                    {move || if deleting.get() { "Borrando…" } else { "Borrar" }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            })}
         </div>
     }
 }
@@ -4141,6 +4746,7 @@ struct AuditRow {
 #[component]
 fn AuditView() -> impl IntoView {
     let rows: RwSignal<Option<Vec<AuditRow>>> = RwSignal::new(None);
+    let export_toast: RwSignal<Option<String>> = RwSignal::new(None);
 
     spawn_local(async move {
         let data = fetch_json::<ApiResponse<AuditRow>>("/api/audit?limit=100")
@@ -4150,32 +4756,40 @@ fn AuditView() -> impl IntoView {
         rows.set(Some(data));
     });
 
+    // T26: el botón usaba un `data:` URL + `encodeURIComponent`, que en WebKit
+    // falla silenciosamente con payloads grandes o caracteres especiales. Ahora
+    // descargamos el JSON como un Blob (mismo camino que el render download) y
+    // surgimos cualquier fallo vía `export_toast` para que deje de ser no-op.
     let on_export = move |_| {
         spawn_local(async move {
-            if let Some(json) = fetch_json::<serde_json::Value>("/api/audit?limit=5000").await {
-                let text = serde_json::to_string_pretty(&json).unwrap_or_default();
-                if let Some(window) = web_sys::window() {
-                    if let Some(doc) = window.document() {
-                        if let Ok(el) = doc.create_element("a") {
-                            let a: web_sys::HtmlAnchorElement = el.unchecked_into();
-                            let encoded = js_sys::encode_uri_component(&text)
-                                .as_string()
-                                .unwrap_or_default();
-                            let data_url = format!(
-                                "data:application/json;charset=utf-8,{}",
-                                encoded
-                            );
-                            a.set_href(&data_url);
-                            a.set_download("audit_log.json");
-                            if let Some(body) = doc.body() {
-                                let _ = body.append_child(&a);
-                                a.click();
-                                let _ = body.remove_child(&a);
-                            }
-                        }
-                    }
+            let json = match fetch_json::<serde_json::Value>("/api/audit?limit=5000").await {
+                Some(j) => j,
+                None => {
+                    export_toast.set(Some("No se pudo leer el audit log.".into()));
+                    let t = export_toast;
+                    gloo_timers::future::TimeoutFuture::new(4_000).await;
+                    t.set(None);
+                    return;
                 }
-            }
+            };
+            let text = serde_json::to_string_pretty(&json).unwrap_or_default();
+            // Blob + <a download>
+            let parts = js_sys::Array::new();
+            parts.push(&wasm_bindgen::JsValue::from_str(&text));
+            let mut blob_opts = web_sys::BlobPropertyBag::new();
+            blob_opts.type_("application/json;charset=utf-8");
+            let blob = match web_sys::Blob::new_with_str_sequence_and_options(&parts, &blob_opts) {
+                Ok(b) => b,
+                Err(_) => {
+                    export_toast.set(Some("Error creando el blob de descarga.".into()));
+                    return;
+                }
+            };
+            trigger_blob_download(&blob, "audit_log.json");
+            export_toast.set(Some("✓ Descarga iniciada: audit_log.json".into()));
+            let t = export_toast;
+            gloo_timers::future::TimeoutFuture::new(4_000).await;
+            t.set(None);
         });
     };
 
@@ -4185,10 +4799,10 @@ fn AuditView() -> impl IntoView {
             <header class="mb-10 flex items-start justify-between">
                 <div>
                     <h2 class="text-4xl font-sans font-black tracking-tighter text-primary uppercase">
-                        "Audit Log"
+                        "Registro de Auditoría"
                     </h2>
                     <p class="font-serif italic text-xl text-outline mt-1">
-                        "Tamper-evident operation record — ENS Category Alta"
+                        "Registro de operaciones a prueba de manipulación — ENS Categoría Alta"
                     </p>
                 </div>
                 <button
@@ -4196,7 +4810,7 @@ fn AuditView() -> impl IntoView {
                     class="flex items-center gap-2 px-4 py-2 bg-primary text-white text-[11px] font-bold uppercase tracking-widest rounded-sm hover:bg-primary/90 transition-colors"
                 >
                     <span class="material-symbols-outlined text-[16px]">"download"</span>
-                    "Export JSON"
+                    "Exportar JSON"
                 </button>
             </header>
 
@@ -4220,13 +4834,13 @@ fn AuditView() -> impl IntoView {
                             <thead>
                                 <tr class="bg-surf-low">
                                     <th class="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-outline w-56">
-                                        "Timestamp"
+                                        "Fecha/Hora"
                                     </th>
                                     <th class="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-outline w-32">
-                                        "Type"
+                                        "Tipo"
                                     </th>
                                     <th class="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-outline">
-                                        "Detail"
+                                        "Detalle"
                                     </th>
                                 </tr>
                             </thead>

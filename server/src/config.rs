@@ -58,6 +58,16 @@ impl Config {
 
     pub fn uploads_dir(&self)   -> PathBuf { self.ai_base.join("uploads") }
     pub fn workspace_dir(&self) -> PathBuf { self.ai_base.join("workspace") }
+    pub fn projects_dir(&self)  -> PathBuf { self.ai_base.join("projects") }
     pub fn knowledge_dir(&self) -> PathBuf { self.ai_base.join("knowledge") }
     pub fn settings_path(&self) -> PathBuf { self.ai_base.join("settings.json") }
+
+    /// Carpeta por-proyecto: `~/.local-ai/projects/{doc_hash}/`.
+    /// Contiene `original.{ext}`, `meta.json` y `outputs/`.
+    pub fn project_dir(&self, doc_hash: &str) -> PathBuf {
+        self.projects_dir().join(doc_hash)
+    }
+    pub fn project_outputs_dir(&self, doc_hash: &str) -> PathBuf {
+        self.project_dir(doc_hash).join("outputs")
+    }
 }

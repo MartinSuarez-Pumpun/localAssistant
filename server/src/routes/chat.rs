@@ -536,7 +536,7 @@ fn created_file_info(output: &str) -> Option<Value> {
 // También soporta el formato estándar <think>...</think> (DeepSeek, etc.)
 // aunque en ese caso <think> aparece como texto de razonamiento (inocuo).
 
-fn split_on_think_end(text: &str, in_think: &mut bool) -> Vec<(bool, String)> {
+pub(crate) fn split_on_think_end(text: &str, in_think: &mut bool) -> Vec<(bool, String)> {
     if !*in_think {
         return if text.is_empty() { vec![] } else { vec![(false, text.to_string())] };
     }

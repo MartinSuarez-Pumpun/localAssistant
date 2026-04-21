@@ -144,12 +144,13 @@ impl<'a> Renderer<'a> {
 // Usamos un em ligeramente conservador (más ancho de lo real) para que el
 // presupuesto de ancho de línea NUNCA subestime el ancho real: es mejor
 // wrap-ear antes y dejar margen derecho de sobra que dejar que una línea
-// se salga del área útil. Para ALINEAR (p.ej. header/footer con número de
-// página) la ligera sobreestimación solo añade unos mm de padding.
+// se salga del área útil.
 fn text_width_mm(s: &str, size_pt: f32, bold: bool) -> f32 {
-    // Helvetica real promedia ~0.52 em regular / ~0.56 em bold. Redondeamos
-    // al alza para tener colchón frente a caracteres anchos (M, W, mayúsc.).
-    let em = if bold { 0.60 } else { 0.55 };
+    // Helvetica real promedia ~0.52 em regular / ~0.56 em bold, pero
+    // cadenas con muchas mayúsculas anchas (M, W, acrónimos) superan eso.
+    // Usamos 0.58 / 0.63 para asegurar que el presupuesto cubra el peor caso
+    // realista y prevenir desbordes por margen derecho.
+    let em = if bold { 0.72 } else { 0.65 };
     let char_mm = size_pt * em * 0.3528; // 1pt ≈ 0.3528mm
     s.chars().count() as f32 * char_mm
 }
@@ -451,16 +452,37 @@ impl<'a> Renderer<'a> {
         }
     }
 
+    /// Renderiza un heading en bold wrappeando por palabras para no desbordar
+    /// el margen derecho. Todas las líneas quedan justificadas a la izquierda.
+    fn render_heading(&mut self, text: &str, size_pt: f32, color: Color, line_factor: f32) {
+        let segs = vec![Segment { text: text.to_string(), bold: true, italic: false }];
+        let words = segments_to_words(&segs, size_pt);
+        let space_mm = text_width_mm(" ", size_pt, true);
+        let lines = wrap_words(&words, CONTENT_W_MM, space_mm);
+        let lh = pt_to_mm(size_pt) * line_factor;
+        for line in &lines {
+            self.ensure_space(lh);
+            let baseline_y = self.y - pt_to_mm(size_pt);
+            let mut x = MARGIN_MM;
+            for (i, w) in line.iter().enumerate() {
+                if i > 0 { x += space_mm; }
+                self.layer.set_fill_color(color.clone());
+                self.layer.use_text(
+                    w.text.clone(), size_pt, Mm(x), Mm(baseline_y),
+                    pick_font(self.fonts, w.bold, w.italic),
+                );
+                x += w.width_mm;
+            }
+            self.y -= lh;
+        }
+    }
+
     fn render_h2(&mut self, text: &str) {
         let size_pt = 15.0;
-        let lh = pt_to_mm(size_pt) * 1.4;
-        self.ensure_space(lh + 3.0);
+        self.ensure_space(pt_to_mm(size_pt) * 1.4 + 3.0);
         self.y -= 3.0; // espacio antes
-        let baseline_y = self.y - pt_to_mm(size_pt);
-        self.layer.set_fill_color(hex_rgb(C_BLUE));
-        self.layer.use_text(text, size_pt, Mm(MARGIN_MM), Mm(baseline_y), &self.fonts.bold);
-        self.y -= lh;
-        // línea azul fina
+        self.render_heading(text, size_pt, hex_rgb(C_BLUE), 1.4);
+        // línea azul fina bajo el (último) renglón del heading
         draw_line(&self.layer, MARGIN_MM, self.y + 1.0,
                   PAGE_W_MM - MARGIN_MM, self.y + 1.0,
                   hex_rgb(C_BLUE), 0.5);
@@ -469,24 +491,16 @@ impl<'a> Renderer<'a> {
 
     fn render_h3(&mut self, text: &str) {
         let size_pt = 12.0;
-        let lh = pt_to_mm(size_pt) * 1.4;
-        self.ensure_space(lh + 2.0);
+        self.ensure_space(pt_to_mm(size_pt) * 1.4 + 2.0);
         self.y -= 2.0;
-        let baseline_y = self.y - pt_to_mm(size_pt);
-        self.layer.set_fill_color(hex_rgb(C_NAVY));
-        self.layer.use_text(text, size_pt, Mm(MARGIN_MM), Mm(baseline_y), &self.fonts.bold);
-        self.y -= lh;
+        self.render_heading(text, size_pt, hex_rgb(C_NAVY), 1.4);
     }
 
     fn render_sublabel(&mut self, text: &str) {
         let size_pt = 9.0;
-        let lh = pt_to_mm(size_pt) * 1.4;
-        self.ensure_space(lh + 2.0);
+        self.ensure_space(pt_to_mm(size_pt) * 1.4 + 2.0);
         self.y -= 2.0;
-        let baseline_y = self.y - pt_to_mm(size_pt);
-        self.layer.set_fill_color(hex_rgb(C_BLUE));
-        self.layer.use_text(text.to_uppercase(), size_pt, Mm(MARGIN_MM), Mm(baseline_y), &self.fonts.bold);
-        self.y -= lh;
+        self.render_heading(&text.to_uppercase(), size_pt, hex_rgb(C_BLUE), 1.4);
     }
 
     fn render_sep(&mut self) {

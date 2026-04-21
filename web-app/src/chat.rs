@@ -154,12 +154,42 @@ pub fn ChatPanel() -> impl IntoView {
                     <span class="material-symbols-outlined text-primary text-[22px]">"smart_toy"</span>
                     <span class="font-semibold text-primary text-sm tracking-tight">"LocalAI Assistant"</span>
                 </div>
-                {move || streaming.get().then(|| view! {
-                    <div class="flex items-center gap-2 text-xs text-on-surf-var">
-                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"/>
-                        "Procesando..."
-                    </div>
-                })}
+                <div class="flex items-center gap-3">
+                    {move || streaming.get().then(|| view! {
+                        <div class="flex items-center gap-2 text-xs text-on-surf-var">
+                            <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"/>
+                            "Procesando..."
+                        </div>
+                    })}
+                    <button
+                        title="Nueva conversación"
+                        class=move || format!(
+                            "inline-flex items-center gap-1.5 h-8 rounded-lg px-3 text-xs \
+                             border transition-colors {}",
+                            if messages.get().is_empty() || streaming.get() {
+                                "bg-surf-low text-on-surf-var border-outline-var/40 cursor-not-allowed opacity-60"
+                            } else {
+                                "bg-surf-low hover:bg-surf-cont text-on-surf border-outline-var/50"
+                            }
+                        )
+                        disabled=move || messages.get().is_empty() || streaming.get()
+                        on:click=move |_| {
+                            let has_msgs = !messages.get().is_empty();
+                            let confirm = if has_msgs {
+                                web_sys::window()
+                                    .and_then(|w| w.confirm_with_message("¿Iniciar una conversación nueva? Se descartarán los mensajes actuales.").ok())
+                                    .unwrap_or(false)
+                            } else { true };
+                            if !confirm { return; }
+                            set_messages.set(vec![]);
+                            set_input.set(String::new());
+                            set_attachments.set(vec![]);
+                        }
+                    >
+                        <span class="material-symbols-outlined text-[16px]">"add_comment"</span>
+                        <span>"Nueva"</span>
+                    </button>
+                </div>
             </header>
 
             // ── Mensajes ──────────────────────────────────────────────────────

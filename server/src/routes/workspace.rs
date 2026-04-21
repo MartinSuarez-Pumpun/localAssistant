@@ -1,5 +1,6 @@
 // workspace.rs — POST /api/workspace/save
-// Persists an output text to ~/.local-ai/workspace/{doc_hash}/{filename}
+// Persists an output text to ~/.local-ai/projects/{doc_hash}/outputs/{filename}
+// (era ~/.local-ai/workspace/{doc_hash}/ antes de T23).
 
 use axum::{
     Json, Router,
@@ -12,7 +13,10 @@ use serde::{Deserialize, Serialize};
 use crate::AppState;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/api/workspace/save", post(save_output))
+    Router::new()
+        .route("/api/workspace/save", post(save_output))
+        .route("/api/project/reveal", post(reveal_project))
+        .route("/api/project/delete", post(delete_project))
 }
 
 #[derive(Deserialize)]
@@ -62,14 +66,14 @@ async fn save_output(
         ));
     }
 
-    let dest_dir = state.config.workspace_dir().join(&body.doc_hash);
+    let dest_dir = state.config.project_outputs_dir(&body.doc_hash);
 
     tokio::fs::create_dir_all(&dest_dir).await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
                 ok:    false,
-                error: format!("cannot create workspace dir: {e}"),
+                error: format!("cannot create project outputs dir: {e}"),
             }),
         )
     })?;
@@ -92,5 +96,100 @@ async fn save_output(
             ok:   true,
             path: dest_file.to_string_lossy().into_owned(),
         }),
+    ))
+}
+
+#[derive(Deserialize)]
+struct RevealRequest {
+    doc_hash: String,
+}
+
+async fn reveal_project(
+    State(state): State<AppState>,
+    Json(body): Json<RevealRequest>,
+) -> Result<(StatusCode, Json<SaveResponse>), (StatusCode, Json<ErrorResponse>)> {
+    if body.doc_hash.is_empty()
+        || !body.doc_hash.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                ok:    false,
+                error: "doc_hash inválido".into(),
+            }),
+        ));
+    }
+
+    let dir = state.config.project_dir(&body.doc_hash);
+    if !dir.exists() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                ok:    false,
+                error: format!("proyecto no encontrado: {}", dir.display()),
+            }),
+        ));
+    }
+
+    #[cfg(target_os = "macos")]
+    { let _ = std::process::Command::new("open").arg(&dir).spawn(); }
+    #[cfg(target_os = "linux")]
+    { let _ = std::process::Command::new("xdg-open").arg(&dir).spawn(); }
+
+    Ok((
+        StatusCode::OK,
+        Json(SaveResponse {
+            ok:   true,
+            path: dir.to_string_lossy().into_owned(),
+        }),
+    ))
+}
+
+#[derive(Deserialize)]
+struct DeleteRequest {
+    doc_hash: String,
+}
+
+async fn delete_project(
+    State(state): State<AppState>,
+    Json(body): Json<DeleteRequest>,
+) -> Result<(StatusCode, Json<SaveResponse>), (StatusCode, Json<ErrorResponse>)> {
+    if body.doc_hash.is_empty()
+        || !body.doc_hash.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                ok:    false,
+                error: "doc_hash inválido".into(),
+            }),
+        ));
+    }
+
+    let dir = state.config.project_dir(&body.doc_hash);
+    let path_str = dir.to_string_lossy().into_owned();
+
+    if !dir.exists() {
+        return Ok((
+            StatusCode::OK,
+            Json(SaveResponse { ok: true, path: path_str }),
+        ));
+    }
+
+    tokio::fs::remove_dir_all(&dir).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                ok:    false,
+                error: format!("no se pudo borrar {}: {e}", dir.display()),
+            }),
+        )
+    })?;
+
+    tracing::info!("project delete: {}", path_str);
+
+    Ok((
+        StatusCode::OK,
+        Json(SaveResponse { ok: true, path: path_str }),
     ))
 }

@@ -129,6 +129,14 @@ async fn transform_handler(
         let mut stream  = resp.bytes_stream();
         let mut buf     = String::new();
         let mut full_output = String::new(); // TRA-001: acumulamos salida completa
+        // Filtro de razonamiento (T24): el panel de salida del plugin sólo
+        // debe contener la respuesta real. A diferencia de chat.rs (que
+        // asume thinking-sin-opener por defecto), aquí el prompt mete
+        // /no_think, así que arrancamos fuera de thinking y sólo entramos
+        // si aparece literalmente un <think> de apertura. Esto permite que
+        // los tokens fluyan en directo — el enfoque anterior bufferizaba
+        // todo el stream hasta recibir un </think> que nunca llegaba.
+        let mut in_think = false;
 
         while let Some(chunk) = stream.next().await {
             let chunk = match chunk {
@@ -146,17 +154,50 @@ async fn transform_handler(
                 let json_str = line.strip_prefix("data: ").unwrap_or(&line);
                 let Ok(val)  = serde_json::from_str::<serde_json::Value>(json_str) else { continue; };
 
+                // `reasoning_content` nativo (DeepSeek/QwQ): se descarta sin
+                // alterar estado — el contenido real viene por delta.content.
+                let _ = val["choices"][0]["delta"]["reasoning_content"].as_str();
+
                 if let Some(token) = val["choices"][0]["delta"]["content"].as_str() {
-                    if !token.is_empty() {
-                        full_output.push_str(token);
+                    if token.is_empty() { continue; }
+
+                    // Detectar apertura <think> en el token: lo que venga antes
+                    // es contenido real y se emite; a partir de ahí entramos en
+                    // thinking hasta ver </think>.
+                    let (pre_think, rest): (&str, String) = match token.find("<think>") {
+                        Some(idx) => {
+                            let pre = &token[..idx];
+                            let after = token[idx + "<think>".len()..].to_string();
+                            in_think = true;
+                            (pre, after)
+                        }
+                        None => ("", token.to_string()),
+                    };
+
+                    if !pre_think.is_empty() {
+                        full_output.push_str(pre_think);
                         let _ = tx.send(format!(
                             "event: token\ndata: {}\n\n",
-                            serde_json::to_string(&serde_json::json!({"text": token})).unwrap()
+                            serde_json::to_string(&serde_json::json!({"text": pre_think})).unwrap()
+                        )).await;
+                    }
+
+                    if rest.is_empty() { continue; }
+
+                    for (is_think, segment) in
+                        crate::routes::chat::split_on_think_end(&rest, &mut in_think)
+                    {
+                        if is_think { continue; } // descartar razonamiento
+                        full_output.push_str(&segment);
+                        let _ = tx.send(format!(
+                            "event: token\ndata: {}\n\n",
+                            serde_json::to_string(&serde_json::json!({"text": segment})).unwrap()
                         )).await;
                     }
                 }
             }
         }
+
 
         // ── TRA-001 / TRA-002: Persistir transformación completada ────────────
         if !full_output.is_empty() {
